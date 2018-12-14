@@ -263,9 +263,9 @@ int main(int argc,char **argv){
 
 //======= Write ntuples to file ===========
 
-  ifstream fileStream("voltages_checkVal.root");
+  ifstream fileStream("voltages.root");
   if(!fileStream.good()){
-    TFile *outfile = new TFile("voltages_checkVal.root","RECREATE");
+    TFile *outfile = new TFile("voltages.root","RECREATE");
 
     TNtuple *voltages = new TNtuple("voltages","voltages","pmt:operatingHV:operatingHVError:nominalHV");
     voltages->Fill(pmt,operatingHV,operatingHVError,nominalHV);
@@ -275,7 +275,7 @@ int main(int argc,char **argv){
   }
 
   else{
-    TFile *outfile = new TFile("voltages_checkVal.root","UPDATE");
+    TFile *outfile = new TFile("voltages.root","UPDATE");
     TNtuple *voltages = (TNtuple*)outfile->Get("voltages");
     voltages->Fill(pmt,operatingHV,operatingHVError,nominalHV);
     voltages->Write("",TObject::kOverwrite);
