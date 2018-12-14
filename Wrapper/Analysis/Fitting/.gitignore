@@ -4,3 +4,6 @@ Old_Versions/
 GetPeakToValley_C.so
 GetPeakToValley_C_ACLiC_dict.cxx_tmp_67594
 GetPeakToValley_C_ACLiC_dict_rdict.pcm
+Plots/
+Fit_Q_C.*
+Fit_Q_C_*

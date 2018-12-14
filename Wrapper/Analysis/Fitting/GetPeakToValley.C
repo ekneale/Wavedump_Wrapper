@@ -194,6 +194,9 @@ Result* fitModel(string file = "PMT_NB0066_HV1820_Analysis.root",
   
   
   Result* res = new Result();
+  
+  TCanvas * canvas = new TCanvas("Canvas", "Canvas");
+  
   //gROOT -> ProcessLine( ".x ./mattStyle.C" );
   
   TFile *input=new TFile(file.c_str());
@@ -251,6 +254,7 @@ Result* fitModel(string file = "PMT_NB0066_HV1820_Analysis.root",
   f2->Draw("SAME");
   f->Draw("SAME");
 
+  canvas->SaveAs("./Plots/PeakToValley.pdf");
 
   // fill result
   res->peak.value = f->GetParameter(1); 

@@ -23,8 +23,8 @@ LFOLDER =
 UNAME = $(shell uname)
 
 # Libraries to link to.
-#LIBS = -lgsl -lgslcblas `root-config --glibs`
-LIBS =  `root-config --glibs`
+#LIBS = -lgsl -lgslcblas `root-config --glibs` 
+LIBS =  `root-config --glibs` -lSpectrum -lRooFit -lRooFitCore
 # Option flags for all build modes.
 CCOPT = -g -O2 -Wall -pedantic -Wno-long-long
 
