@@ -82,38 +82,74 @@ int main(int argc,char **argv){
   int pmt;
   int loc;
   int run = 1;
+
+  static const int nPMTsA = 80;
+  static const int nPMTsB = 20;
+  static const int nPMTs  = nPMTsA + nPMTsB;
+
+  int  pmtAList[nPMTsA] = {83 , 88,108,107,
+               73 , 76, 84, 87,
+               66 , 78, 82,103,
+               104,106,112,141,
+               61 , 65, 75,105,
+               74 ,111,140,142,
+               143,145,146,147,
+               63 , 67,158,160,
+               139,161,164,165,
+               90 ,159,166,171,
+               81 ,167,169,170,
+               50 , 53,162,163,
+               55 , 56, 92, 94,
+               57 , 51, 54, 59,
+               96 , 97, 98, 99,
+               153,148,154,157,
+               1  ,  3,  6,  7,
+               34 , 37, 39, 42,
+               26 , 27, 28, 29,
+               130,131,132,133};
+
+
+  int  pmtBList[nPMTsB] = {102,149,150,152,
+               9  , 10, 12, 14,
+               43 , 47, 48, 49,
+               30 , 31, 32, 33,
+               134,135,136,138};
+
+  int  locAList[4] = {0,1,2,3};
+  int  locBList[4] = {4,5,6,7};
+
+
   char histname[200]= "";
-    //Determing the PMT number and the applied Voltage=====================================================
-  cout << "Input the PMT number \n" ;
-  cout << "Note: please neglect the NB and the zeros before the number \n" <<endl;
-  cin  >> pmt; 
-  cout <<endl;
-    
-  cout << "Input the location number \n" ;
-  cin  >> loc; 
-  cout <<endl;
+    //Determing the PMT number, location and the applied Voltage=====================================================
 
-//  cout << "Input the run number \n";
-//  cin  >> run;
-//  cout << endl;
+  for (int iPMT = 0 ; iPMT < nPMTs ; iPMT++){
 
-    
-  for (int i=0;i<125; i++){
-     
-    if (pmt == PMT_number[i]){
-      nominalHV = HV[i];
-      printf("nominal HV is %d \n",nominalHV);
+    if( iPMT < nPMTsA ){
+        pmt = pmtAList[iPMT];
+        loc = locAList[iPMT%4];
     }
-    
-    for(int h=0; h<5; h++){
-      if (pmt==PMT_number[i]){
-        pmtHV[h] =HVstep[i][h];
-  	    printf("HV %d location  %d Test %d \n",pmtHV[h],loc,h);
-	  }
-	}
-  }
-				
+    else{
+        pmt = pmtBList[iPMT-nPMTsA];
+        loc = locBList[(iPMT-nPMTsA)%4];
+    }
   
+    for (int i=0;i<125; i++){
+
+      if (pmt == PMT_number[i]){
+        nominalHV = HV[i];
+        printf("nominal HV is %d \n",nominalHV);
+      }
+
+      for(int h=0; h<5; h++){
+        if (pmt==PMT_number[i]){
+          pmtHV[h] =HVstep[i][h];
+          printf("HV %d location  %d Test %d \n",pmtHV[h],loc,h);
+        }
+      }
+    }
+
+
+    
   //======================================================================================================
   
   
@@ -121,34 +157,34 @@ int main(int argc,char **argv){
   // * Set up ROOT *
   // ***************
 
-  double hvVals[5]; double gainVals[5];
-  double gainValues[5]; //creates an empty array for the gain value for each PMT and each step
-  // Fitting the SPE Spectrum =======================================================================
+    double hvVals[5]; double gainVals[5];
+    double gainValues[5]; //creates an empty array for the gain value for each PMT and each step
+    // Fitting the SPE Spectrum =======================================================================
   
-  for (int r=0;r<5;r++){ 
+    for (int r=0;r<5;r++){ 
     
-    TCanvas *tc=new TCanvas("SPE","SPE",1);
-    //tc->Connect("TCanvas","Closed()","TApplication",gApplication,"Terminate()");
-    tc->SetGrid();
+      TCanvas *tc=new TCanvas("SPE","SPE",1);
+      //tc->Connect("TCanvas","Closed()","TApplication",gApplication,"Terminate()");
+      tc->SetGrid();
     
-    // Create canvas, allowing for window close.
+      // Create canvas, allowing for window close.
     
     
-    // *************************
-    // * Create output spectra *
-    // *************************
+      // *************************
+      // * Create output spectra *
+      // *************************
     
-    int hv = r+1; // gain test number
+      int hv = r+1; // gain test number
     
-    sprintf(histname, "/data/kneale/Wavedump_Wrapper/RawRootData/Run_%d_PMT_%d_Loc_%d_HV_%d.root",run,pmt,loc,hv); 
+      sprintf(histname, "/data/kneale/Wavedump_Wrapper/RawRootData/Run_%d_PMT_%d_Loc_%d_HV_%d.root",run,pmt,loc,hv); 
     
-    //printf("Voltage: 
-    TFile s(histname);
-    s.ls();
+      //printf("Voltage: 
+      TFile s(histname);
+      s.ls();
     
-    char root_name[30];
-    sprintf(root_name, "hQ_Fixed_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);
-    TH1D *speData = (TH1D*)s.Get(root_name);
+      char root_name[30];
+      sprintf(root_name, "hQ_Fixed_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);
+      TH1D *speData = (TH1D*)s.Get(root_name);
 
     printf("Getting data from SPE spectrum...\n");
     speData->GetYaxis()->SetTitle("Counts ");
@@ -169,7 +205,7 @@ int main(int argc,char **argv){
 		
 	/***Find the value at the maximum***/
     TSpectrum *spec = new TSpectrum(3,3);
-    Int_t nfound = spec->Search(speData,1,"goff",0.0002);
+    Int_t nfound = spec->Search(speData,2,"goff",0.0002);
     std::cout << "found peaks " << nfound << std::endl;
 
     // returns positions of Pedestal and Signal approx
@@ -299,7 +335,7 @@ int main(int argc,char **argv){
     voltages->Write("",TObject::kOverwrite);
     outfile->Close();
     delete outfile;
- }
+  }
 	//=============================================================================================================================
   
 
@@ -307,7 +343,7 @@ int main(int argc,char **argv){
   canvasName += canvas->GetName();
   canvasName += ".png";
   canvas->SaveAs(canvasName);
- 
+ }
   return 0;
 }
 
