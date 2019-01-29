@@ -131,23 +131,60 @@ int main(int argc,char **argv){
 		cout <<answer<<endl;
 		
   }
+/*
+TString getRunFolderName(int run){
+
+  if     ( run < 10  )
+    return "RUN00000%d/";
+  else if( run < 100 )
+    return "RUN0000%d/";
+  else if( run < 1000 )
+    return "RUN000%d/";
+  else if( run < 10000 )
+    return "RUN00%d/";
+  else if( run < 100000 )
+    return "RUN0%d/";
+  else
+    return "RUN%d/";
+}
+
+TString getPMTFolderName(int pmt){
+
+  if     ( pmt < 10  )
+    return "PMT000%d/";
+  else if( pmt < 100 )
+    return "PMT00%d/";
+  else if( pmt < 1000 )
+    return "PMT0%d/";
+  else
+    return "PMT%d/";
+}
+
+TString getRawRootFilePath(TString filePath = "./",
+               int  run  = 0,
+               int  pmt  = 1,
+               int  loc  = 0,
+               char test = 'S',
+               int  hvStep = 0){
+TString rtnFilePath = "";
+
+  // append with filename
+  // containing info
+  filePath += "Run_%d_PMT_%d_Loc_%d_HV_%d";
+  rtnFilePath.Form(filePath,run,pmt,loc,hvStep);
+}
+*/
   //======================================================================================================
   
   
   // ***************
   // * Set up ROOT *
   // ***************
-  // // Create default ROOT application.
-  // TApplication *ta=new TApplication("ta",&argc,argv);
   
-  // Data histogram.
-  //TH1D* sData=newTH1D("data","Single Photon Energy;Channel;Counts",2000,-1000,9000);
   int PMT[4] = {channel[0],channel[1],channel[2],channel[3]};
   double gainValues[4][5];  //creates an empty array for the gain value for each PMT and each step
   
   
-  //	vector<double> centroid(20,0), centroid_error(20,0),area(20,0), area_error(20,0);
-  //char filename[30];
   // Fitting the SPE Spectrum =======================================================================
   
   for (int r=0;r<20;r++){ 
