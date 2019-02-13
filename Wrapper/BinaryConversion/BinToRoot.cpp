@@ -55,6 +55,8 @@ int  getNSamples(char digitiser,
       return 110;
   case ('D'):
     return 1024;
+  case ('d'):
+    return 1024;
   default:
     cerr << "Error: Unknown digitiser " << endl;
     return 0;
@@ -66,7 +68,8 @@ int  getNVDCBins(char digitiser){
 
   if     ( digitiser == 'V' )
     return 16384;
-  else if( digitiser == 'D' )
+  else if( digitiser == 'D' ||
+	   digitiser == 'd' )
     return 4096;
   else{
     cerr << "Error: Unknown digitiser " << endl;
@@ -79,7 +82,8 @@ float getVoltageRange(char digitiser){
   
   if     ( digitiser == 'V' )
     return 2.0;
-  else if( digitiser == 'D' )
+  else if( digitiser == 'D' ||
+	   digitiser == 'd' )
     return 1.0;
   else{
     cerr << "Error: Unknown digitiser " << endl;
@@ -95,6 +99,8 @@ int getSampleRateInMHz(char digitiser){
     return 500;
   else if( digitiser == 'D' )
     return 5000;
+  else if( digitiser == 'd' )
+    return 1000;
   else{
     cerr << "Error: Unknown digitiser " << endl;
     return 0;
@@ -177,6 +183,9 @@ bool isCorrectDigitiser(int header,
 			char digitiser,
 			int test){
   
+  if( digitiser == 'd' )
+    digitiser = 'D';
+
   switch( test ){
   case ('A'): 
     if( header == 10224 && digitiser == 'V')
@@ -629,7 +638,8 @@ int ProcessBinaryFile(TString inFilePath,
 	fileStream.read((char*)&VDC,2); 
       }
       // read 4 bits
-      else if( digitiser == 'D' ){
+      else if( digitiser == 'D' ||
+	       digitiser == 'd'){
 	fileStream.read((char*)&floatVDC,sizeof(float));
 	VDC = (short)floatVDC;
       }
@@ -686,8 +696,11 @@ int ProcessBinaryFile(TString inFilePath,
       
       // sample vs VDC and time vs voltage plots
       // for checking signals (delay etc) 
-      if( event < 100000   &&
-	  !( event % 1000 )){
+      // plot pulses for 1000 events
+      // from first 100,000
+      if( ( event < 100000    )  &&
+	  ( event % 100  == 0 )
+	  ){
 	
 	hPulses->Fill(iSample,pulse[iSample]);
 	
@@ -751,7 +764,7 @@ int ProcessBinaryFile(TString inFilePath,
   hTV->SetAxisRange(minY,maxY,"Y");
 
   float minX = 0.;
-  float maxX = 1000.; // 220.
+  float maxX = 500.; // 220.
   
   if(test=='A'){
     hTV->SetAxisRange(minX,maxX,"X");
@@ -783,12 +796,12 @@ int ProcessBinaryFile(TString inFilePath,
   
   canvas->cd(4);
   
-  minY = getNVDCBins(digitiser)*10/16 ;
-  maxY = getNVDCBins(digitiser)*6/16 ;
+  minY = getNVDCBins(digitiser)*10./16 ;
+  maxY = getNVDCBins(digitiser)*6./16 ;
   
-  hPulses->SetAxisRange(minY,maxY,"Y");
+  //hPulses->SetAxisRange(minY,maxY,"Y");
+  hPulses->SetAxisRange(7500.,8500.,"Y");
     
-  
   hPulses->Draw("colz");
   
   canvasName = "./Plots/";
@@ -832,13 +845,13 @@ int main(int argc, char **argv)
   
   // 'V' - VME (default)
   // 'D' - Desktop
-  char   digitiser = 'V';
+  char   digitiser = 'd';
 
   //-------------------
-  int  run = 1; 
-  int  pmt = 155;
-  int  loc = 6;
-  char test = 'A';
+  int  run = 160000; 
+  int  pmt = 16;
+  int  loc = 0;
+  char test = 'D';
 
   // Default - not gain test setting
   // Set automatically for test type
@@ -850,27 +863,27 @@ int main(int argc, char **argv)
 
   // 'S' SPE, 'G' Gain, 'D' Dark
   // 'A' After, 'N' Nominal, 
-  char testList[nTests] = {'A'};
+  char testList[nTests] = {'D'};
   //char testList[nTests] = {'S','N','G','D','A'};
   
   static const int nRuns = 1; // 5
-  int  runList[nRuns] = {1};
+  int  runList[nRuns] = {160001};
   
   // PMTS 130 131 132 133
   //int  runList[nRuns] = {2,3,10,22,23}; 
   //int  runList[nRuns] = {4,11,12,20,21};
   
 
-  static const int nPMTsA = 0;//80;
-  static const int nPMTsB = 4;//20;
+  static const int nPMTsA = 1;//80;
+  static const int nPMTsB = 0;//20;
   static const int nPMTs  = nPMTsA + nPMTsB;
   
   //int  pmtAList[nPMTsA] = {130,131,132,133};  
   //int  pmtAList[nPMTsA] = {90,159,166,171};  
 
-  int  pmtAList[1] = {0};
+  int  pmtAList[1] = {16};
   // 
-  int  pmtBList[nPMTsB] = {0,0,155,0}; 
+  int  pmtBList[1] = {0}; 
   
   // //-------------
   // // RUN 1
@@ -908,15 +921,9 @@ int main(int argc, char **argv)
   int  locAList[4] = {0,1,2,3};
   int  locBList[4] = {4,5,6,7};
   
-  TString inputDirectory  = "/Volumes/G-DRIVE/BinaryData/";
+  TString inputDirectory  = "/scratch/Gary/Data/";
   
-  inputDirectory = "/Disk/ds-sopa-group/PPE/Watchman/BinaryData/";
-  
-  TString outputDirectory = "/Users/gsmith23/Desktop/Watchman/PMT_Testing/";
-  outputDirectory +=  "Wavedump_Wrapper/RawRootData/";
-  
-  //outputDirectory = "/Disk/ds-sopa-group/PPE/Watchman/RawRootData/";
-  outputDirectory = "/scratch/Gary/Wavedump_Wrapper/RawRootData/";
+  TString outputDirectory = "/scratch/Gary/Data/";
   
   int nEvents = -2;
   
