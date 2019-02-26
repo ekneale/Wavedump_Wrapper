@@ -1,4 +1,4 @@
-/***************************************************
+/*****************************************************
  * A program to process raw root files from wavedump
  *
  * Author 
@@ -12,14 +12,29 @@
  *  $ make 
  *
  * How to run
- *  $ ./executePMTAnalysis  
+ *
+ *  Example One - analyse one raw root file
+ *  $ ./executePMTAnalysis ../../RawRootData/Run_11_PMT_90_Loc_0_Test_D.root  
+ *
+ *  Example Two - analyse two raw root files (two HV steps)
+ *  $ ./executePMTAnalysis ../../RawRootData/Run_11_PMT_90_Loc_0_HV_1.root ../../RawRootData/Run_11_PMT_90_Loc_0_HV_2.root 
+ *
+ *  Example Three - analyse multiple raw root files ( all run numbers )
+ *  $ ./executePMTAnalysis ../../RawRootData/Run_*_PMT_90_Loc_0_Test_D.root  
  *
  * Dependencies
  *  root.cern
+ *  PMTAnalyser
+ *  DataInfo
+ *  ShippingData
  *
+ * Known issues
+ *   Under linux you will likely be required to add 
+ *   the shared (.so) file to your library path 
  *
  */ 
-#include<iostream>
+
+#include <iostream>
 
 #include <string>
 #include "TFile.h"
@@ -36,15 +51,17 @@ int main(Int_t argc, Char_t *argv[]){
   TFile * file = nullptr;
   TTree * tree = nullptr;
   
-  PMTAnalyser * analysePMT = nullptr;
-
-  Float_t thresh_mV  = 10.0;
-  Int_t   darkRate   = 8000.;
+  PMTAnalyser * PMT = nullptr;
 
   ShippingData * shipData = nullptr;
+
+  Char_t  digitiser = 'V';
   
-  // Loop over argv[] which should be a path (paths)
-  // to a file (list of files)
+  //Float_t thresh_mV  = 10.0;
+  //Int_t   darkRate   = 8000.;
+  
+  // argv should be a path to a file
+  // or list of files ( wildcards work )
   for( int iFile = 1 ; iFile < argc ; iFile++){
      
      file = new TFile(argv[iFile],"READ");
@@ -61,6 +78,10 @@ int main(Int_t argc, Char_t *argv[]){
      cout << " Run      " << run(argv[iFile])      << endl;
      cout << " PMT      " << pmtID(argv[iFile])    << endl;
      cout << " Location " << location(argv[iFile]) << endl;
+     cout << " Test     " << test(argv[iFile]) << endl;
+
+     if( test(argv[iFile])=='G')
+       cout << " HV step  " << HVStep(argv[iFile]) << endl; 
      
      cout << endl;
      shipData = new ShippingData(pmtID(argv[iFile]));
@@ -69,17 +90,24 @@ int main(Int_t argc, Char_t *argv[]){
      file->GetObject((TString)GetTreeName(argv[iFile]),tree); 
      
      // initalise analysis object using tree 
-     analysePMT = new PMTAnalyser(tree);
+     PMT = new PMTAnalyser(tree,
+			   digitiser,
+			   test(argv[iFile]));
      
      // Double Chooz dark rate threshold (x10 to include amplification)
-     darkRate   = analysePMT->DarkRate(thresh_mV);
+     // darkRate   = PMT->DarkRate(thresh_mV);
+     // cout << " Hamamatsu Dark Rate = " << shipData->GetDR() << endl;
+     // cout << " PMT Test  Dark Rate = " << darkRate          << endl;
      
-     cout << " Hamamatsu Dark Rate = " << shipData->GetDR() << endl;
-     cout << " PMT Test  Dark Rate = " << darkRate          << endl;
+     // Make Filtered Histograms
+     PMT->Make_FFT_Histos();
      
+     //PMT->Make_Fixed_Gate_Filtered();
+
   }
   
-  //TFile * resultsFile = new TFile("Results","RECREATE");
+  // To Do:
+  // TFile * resultsFile = new TFile("Results","RECREATE");
   
   return 1;
 }

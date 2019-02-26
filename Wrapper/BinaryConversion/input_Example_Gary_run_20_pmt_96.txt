@@ -1,0 +1,7 @@
+20 
+96
+4
+S
+/Users/gsmith23/Desktop/Watchman/Testing/Wavedump_Wrapper/BinaryData/
+/Users/gsmith23/Desktop/Watchman/Testing/Wavedump_Wrapper/RawRootData/
+V

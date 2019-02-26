@@ -30,6 +30,5 @@ void GetPeakToValley(TString rootFileName = "Run_200_PMT_15_Loc_0_Test_S"){
   cout << "peak           = " << results->peak.value         << " (" << results->peak.error         << ") " << endl;
   cout << "peak to valley = " << results->peakToValley.value << " (" << results->peakToValley.error << ") " << endl;
   
-  
 }
 
