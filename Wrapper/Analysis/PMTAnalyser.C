@@ -2,8 +2,105 @@
 #include "PMTAnalyser.h"
 #include <TH2.h>
 #include <TStyle.h>
-#include <TCanvas.h>
 #include "TBranch.h"
+#include "TLatex.h"
+#include "TROOT.h"
+
+void PMTAnalyser::SetStyle(){
+  
+  TStyle     *watchStyle  = new TStyle("watchStyle",
+				       "My Root Styles");
+  
+  const Int_t NCont = 255;
+  const Int_t NRGBs = 5;
+  
+  // Color scheme for 2D plotting with a better defined scale 
+  Double_t stops[NRGBs] = { 0.00, 0.34, 0.61, 0.84, 1.00 };
+  Double_t red[NRGBs]   = { 0.00, 0.00, 0.87, 1.00, 0.51 };
+  Double_t green[NRGBs] = { 0.00, 0.81, 1.00, 0.20, 0.00 };
+  Double_t blue[NRGBs]  = { 0.51, 1.00, 0.12, 0.00, 0.00 };          
+  TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
+  
+  watchStyle->SetNumberContours(NCont);
+  
+  // General
+  // OPTIONS - FILL LINE TEXT MARKER
+  
+  watchStyle->SetFillColor(0);
+  watchStyle->SetTextSize(0.05);
+  
+  //-----------  Canvas
+  
+  watchStyle->SetCanvasBorderMode(0);
+  watchStyle->SetCanvasColor(kWhite);
+  
+  //------------- Pad
+  
+  watchStyle->SetPadBorderMode(0); 
+  watchStyle->SetPadColor(kWhite);
+  
+  // Make more room for X and Y titles
+  // one pad
+  // watchStyle->SetPadRightMargin(0.05);  //percentage
+  // watchStyle->SetPadLeftMargin(0.1);    //percentage
+  // watchStyle->SetPadBottomMargin(0.12); //percentage
+  
+  // six sub-pads
+  watchStyle->SetPadRightMargin(0.16);  //percentage
+  watchStyle->SetPadLeftMargin(0.2);    //percentage
+  watchStyle->SetPadBottomMargin(0.14); //percentage
+  
+  //----------- Histogram
+  
+  // Histos
+  watchStyle->SetHistLineWidth(1);
+  watchStyle->SetMarkerStyle(20);
+  
+  //  FILL CONTOURS LINE BAR 
+  //  Frames
+  watchStyle->SetFrameBorderMode(0);
+  
+  //  FILL BORDER LINE
+  //  Graphs
+  //  LINE ERRORS
+  
+  //---------  Axis 
+  
+  watchStyle->SetLabelFont(132,"XYZ"); 
+  watchStyle->SetLabelSize(0.04,"XYZ");
+  watchStyle->SetLabelOffset(0.01 ,"Y");
+  
+  //---------  Title
+  watchStyle->SetOptTitle(1);
+  watchStyle->SetTitleStyle(0);
+  watchStyle->SetTitleBorderSize(0);
+
+
+  watchStyle->SetTitleSize(0.03,"t");
+  watchStyle->SetTitleFont(132,"t"); 
+
+  watchStyle->SetTitleFont(132,"XYZ"); 
+
+  watchStyle->SetTitleSize(0.05,"XYZ");
+  
+  watchStyle->SetTitleOffset(1.0,"XYZ");
+  
+  // 6 sub-pads
+  watchStyle->SetTitleOffset(1.6,"Y");
+  
+  //----------  Stats
+  watchStyle->SetOptStat(0);
+  watchStyle->SetStatStyle(0);
+
+  watchStyle->SetOptFit(1);
+  
+  //----------  Legend
+  watchStyle->SetLegendBorderSize(0);
+  //watchStyle->SetLegendFont(132);
+  
+  gROOT->SetStyle("watchStyle");
+  gROOT->ForceStyle();
+}
 
 // !!! IN PROGRESS
 Int_t PMTAnalyser::DarkRate(Float_t threshold = 10)
@@ -16,6 +113,9 @@ Int_t PMTAnalyser::DarkRate(Float_t threshold = 10)
   
   Long64_t nentries = rawRootTree->GetEntriesFast();
   Long64_t nDark    = 0 ;
+  
+  if(testMode)
+    nentries = 10000;
   
   cout << endl;
   cout << " Calculating Dark Rate " << endl;
@@ -37,13 +137,15 @@ Int_t PMTAnalyser::DarkRate(Float_t threshold = 10)
 
     if(verbosity > 0){
       cout << endl;
-      cout << " jentry        = " << jentry        << endl;
+      cout << " jentry = " << jentry << endl;
+      cout << " nDark  = " << nDark  << endl;
+
     }
     
-  }  
+  }
 
-  //!!!! Temporary
-  Float_t darkRate = (Float_t)nDark/nentries/220.*1.0e9;
+  Float_t darkRate = (Float_t)nDark/nentries;
+  darkRate = darkRate/waveformDuration * 1.0e9;
   
   if(verbosity > 0){  
     cout << endl;
@@ -57,27 +159,22 @@ Int_t PMTAnalyser::DarkRate(Float_t threshold = 10)
 
 
 // !!! IN PROGRESS
-Int_t PMTAnalyser::Make_hFixed_Filtered(){
-
+Int_t PMTAnalyser::FFT_Filter(){
+  
   if (rawRootTree == 0) return -1;
 
-  TCanvas * canvas = new TCanvas();
-  
-  int verbosity = 1;
-
-  double waveformDuration = NSamples * nsPerSample;
-
-  Int_t nBinsX  = 512;
-  Float_t rangeQ[2] = {-500.,1500.};
-  
   TH1D * hWave = new TH1D("hWave","hWaveform;Time /ns;ADC counts",
-			NSamples, 0., waveformDuration);
+			  NSamples, 0., waveformDuration);
   
+  TH1F * hWaveFFT  = new TH1F("hWaveFFT","hWaveFFT",
+			      NSamples, 0, NSamples);
+  
+
   Long64_t ientry;
   Long64_t nentries = rawRootTree->GetEntriesFast();
 
-  //!!! Test
-  nentries = 300000;
+  if( testMode )
+    nentries = 300000;
   
   double aoff = 8700;
   
@@ -97,42 +194,32 @@ Int_t PMTAnalyser::Make_hFixed_Filtered(){
       
     } // end: for( int iSample = ...
 
-
-    // Fill unfiltered histogram
-
-    // Check this entry's waveform
-    if( IsCleanFFTWaveform(hWave) ){
-      
-      // Fill filtered histograms
-      
-    }
+    hWaveFFT->Reset();
+    hWave->FFT(hWaveFFT ,"MAG");
+    
+    ///------------------
+    //  Do the filtering
+    //if(IsCleanFFTWaveform(hWaveFFT))
+    // do someit
+    ///-------------------
+    
   } //end of: for (Long64_t jentry = 0; jentry
 
   // Draw plots and append to root file
   
   return 1;
-
 }
 
 
-Bool_t PMTAnalyser::IsCleanFFTWaveform(TH1D * hWave){
-  
-  Bool_t waveformIsClean = kFALSE;
+Bool_t PMTAnalyser::IsCleanFFTWaveform(TH1F * hWaveFFT){
 
-  TH1F* hWaveFFT  = new TH1F("hWaveFFT","hWaveFFT",
-			    NSamples, 0, NSamples);
-  
-  hWave->FFT(hWaveFFT ,"MAG");
-  
   // delete zero frequency data
-  hWaveFFT->SetBinContent(1,0.) ;
+  hWaveFFT->SetBinContent(1,0.);
   
   if(hWaveFFT->GetMaximumBin() == 2)
-    waveformIsClean = kTRUE;
-  
-  hWaveFFT->Delete();
-    
-  return waveformIsClean;
+    return kTRUE;
+  else
+    return kFALSE;
 }
 
 
@@ -159,21 +246,26 @@ Bool_t PMTAnalyser::IsCleanFFTWaveform(TH1D * hWave){
 //  Propose using only data traces where the peak FFT component 
 //  falls in the lowest non-zero bin (bin #2)
 
-Int_t PMTAnalyser::Make_FFT_Histos()
+TCanvas * PMTAnalyser::Make_FFT_Canvas()
 {
-  if (rawRootTree == 0) return -1;
-
+  
   TCanvas * canvas = new TCanvas();
+
+  if (rawRootTree == 0) return nullptr;
   
   int verbosity = 1;
 
   double waveformDuration = NSamples * nsPerSample;
   
   TH1D* hWave = new TH1D("hWave","hWaveform;Time /ns;ADC counts",
-			NSamples, 0., waveformDuration);
+			 NSamples, 0., waveformDuration);
   
-  TH1F* hWaveFFT_Accumulate  = new TH1F("hWaveFFT_Accumulate","hWaveFFT_Accumulate",
-					NSamples, 0, NSamples);
+  TH1F* hWaveFFT = new TH1F("hWaveFFT","hWaveFFT;",
+			    NSamples, 0, NSamples);
+  
+  TH1F* hWaveFFT_MaxBin  = new TH1F("hWaveFFT_MaxBin",
+				    "hWaveFFT_MaxBin",
+				    NSamples, 0, NSamples);
   
   TH1D* hMaxADC = new TH1D("hMaxADC","Waveform ADC Maximum;maxADC;counts",
 			   1000, 200.,1200.); 
@@ -181,6 +273,7 @@ Int_t PMTAnalyser::Make_FFT_Histos()
   TH1D* hMaxADC_Filtered = new TH1D("hMaxADC_Filtered",
 				    "hMaxADC_Filtered;maxADC;counts",
 				    1000, 200.,1200.);
+  
   
   Long64_t ientry;
   Long64_t nentries = rawRootTree->GetEntriesFast();
@@ -191,6 +284,9 @@ Int_t PMTAnalyser::Make_FFT_Histos()
   cout << endl;
   cout << " Performing FFT " << endl;
   
+  if( testMode)
+    nentries = 10000;
+  
   for (Long64_t jentry = 0; jentry < nentries; jentry++) {
     
     ientry = LoadTree(jentry);
@@ -199,9 +295,9 @@ Int_t PMTAnalyser::Make_FFT_Histos()
     
     if( jentry%100000==0 )
       cout << " entry = " << jentry << endl; 
-    
+
+    // make waveform histogram    
     for( int iSample = 0 ; iSample < NSamples; iSample++){
-      
       hWave->SetBinContent(iSample+1,
 			  (double)(aoff - waveform[iSample]));
       
@@ -212,21 +308,23 @@ Int_t PMTAnalyser::Make_FFT_Histos()
       }
 	
     } // end: for( int iSample = ...
+    // waveform histogram made    
     
     hMaxADC->Fill( hWave->GetMaximum() );
-
-    // Accumulate FFT of waveform in hWaveFFT_Accumulate
-    hWave->FFT(hWaveFFT_Accumulate ,"MAG");
     
-    // Check this entry's waveform
-    if( IsCleanFFTWaveform(hWave) ){
+    hWaveFFT->Reset();
+
+    hWave->FFT(hWaveFFT ,"MAG");
+    
+    hWaveFFT->SetBinContent(1,0.);
+
+    // Store maximum FFT bin 
+    hWaveFFT_MaxBin->Fill(hWaveFFT->GetMaximumBin());
+    
+    if(hWaveFFT->GetMaximumBin() == 2)
       hMaxADC_Filtered->Fill( hWave->GetMaximum());
-    }
     
-    fftoff = hWaveFFT_Accumulate->GetBinContent(1)/(double)NSamples; 
-
-    // delete zero frequency data
-    hWaveFFT_Accumulate->SetBinContent(1,0.) ;
+    fftoff = hWaveFFT->GetBinContent(1)/(double)NSamples; 
     
     if(verbosity > 1){
       cout << endl;
@@ -241,18 +339,49 @@ Int_t PMTAnalyser::Make_FFT_Histos()
     cout << " nentries = " << nentries << endl;
   }
 
-  canvas->Divide(2,1);
+   canvas->Divide(2,2);
 
-  canvas->cd(1);
-  hMaxADC->Draw();
-  
-  hMaxADC_Filtered->SetLineColor(kRed);
-  hMaxADC_Filtered->Draw("same");
+   canvas->cd(1);
+   gPad->SetLogy(1);
 
-  canvas->cd(2);  
-  hWaveFFT_Accumulate->Draw();
-    
-  canvas->SaveAs("canvas.pdf");
+   hMaxADC->Draw();
+   
+   hMaxADC_Filtered->SetLineColor(kBlue);
+   hMaxADC_Filtered->Draw("same");
+   
+   TLatex * latex = new TLatex();
+   TString entriesStr = " %d entries ";
   
-  return 1;
+   latex->SetNDC();
+
+   latex->SetTextSize(0.025);
+   latex->SetTextAlign(12);  //align at top
+   
+   entriesStr.Form("hMaxADC: %d entries ",
+		   (int)hMaxADC->GetEntries());
+   
+   latex->DrawLatex(0.7,0.8,entriesStr);
+   
+   latex->SetTextColor(kBlue);
+   
+   entriesStr.Form("FFT Filtered: %d entries ",
+		   (int)hMaxADC_Filtered->GetEntries());
+   latex->DrawLatex(0.7,0.75,entriesStr);
+  
+   canvas->cd(2);  
+   
+   hWaveFFT_MaxBin->SetLineColor(kBlue);  
+   hWaveFFT_MaxBin->Draw();
+   
+   canvas->cd(3);  
+   
+   hWaveFFT->Draw();
+
+   canvas->cd(4);  
+
+   return canvas;
+}
+
+void PMTAnalyser::SetTestMode(Bool_t userTestMode){
+  testMode = userTestMode;
 }

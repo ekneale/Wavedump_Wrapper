@@ -9,6 +9,8 @@
 #include "TH2.h"
 
 #include "DataInfo.h"
+#include <TCanvas.h>
+
 
 using namespace std;
 
@@ -26,6 +28,8 @@ class PMTAnalyser {
   Float_t        VoltageRange;
   Float_t        mVPerBin;
   Float_t        nsPerSample;
+  
+  Float_t        waveformDuration;
 
   Int_t          event;
   
@@ -48,17 +52,29 @@ class PMTAnalyser {
   TBranch        *b_peakV_mV;  
   TBranch        *b_waveform; 
   
-  PMTAnalyser(TTree *tree=0, Char_t digitiser='V', Char_t userTest='S');
+  PMTAnalyser(TTree *tree=0, Char_t digitiser='V',
+	      Char_t userTest='S', 
+	      Bool_t oldRootFileVersion = kFALSE);
+  
   virtual ~PMTAnalyser();
   virtual Int_t    GetEntry(Long64_t entry);
   virtual Long64_t LoadTree(Long64_t entry);
-  virtual void     Init(TTree *tree,Char_t digitiser,Char_t userTest);
+  virtual void     Init(TTree *tree,Char_t digitiser,
+			Char_t userTest, Bool_t oldRootFileVersion);
   virtual Int_t    DarkRate(Float_t);
-  virtual Int_t    Make_FFT_Histos();
-  virtual Int_t    Make_hFixed_Filtered();
-  virtual Bool_t   IsCleanFFTWaveform(TH1D *);
+  virtual TCanvas* Make_FFT_Canvas();
+  virtual Int_t    FFT_Filter();
+  virtual Bool_t   IsCleanFFTWaveform(TH1F *);
   virtual Bool_t   Notify();
   virtual void     Show(Long64_t entry = -1);
+  virtual void     SetStyle();
+  virtual void     SetTestMode(Bool_t userTestMode = kTRUE);
+
+
+ private:
+
+  Bool_t testMode;
+
 };
 
 #endif
@@ -67,9 +83,10 @@ class PMTAnalyser {
 
 PMTAnalyser::PMTAnalyser(TTree *tree,
 			 Char_t digitiser,
-			 Char_t userTest) : rawRootTree(0) 
+			 Char_t userTest,
+			 Bool_t oldRootFileVersion) : rawRootTree(0) 
 {
-  Init(tree,digitiser,userTest);
+  Init(tree,digitiser,userTest,oldRootFileVersion);
 }
 
 PMTAnalyser::~PMTAnalyser()
@@ -99,9 +116,12 @@ Long64_t PMTAnalyser::LoadTree(Long64_t entry)
 
 void PMTAnalyser::Init(TTree *tree,
 		       Char_t digitiser,
-		       Char_t userTest)
+		       Char_t userTest,
+		       Bool_t oldRootFileVersion)
 {
   
+  testMode = kFALSE;
+
   testType = userTest;
 
   dataInfo = new DataInfo();
@@ -113,6 +133,8 @@ void PMTAnalyser::Init(TTree *tree,
   mVPerBin     = dataInfo->GetmVPerBin(digitiser);  
   nsPerSample  = dataInfo->GetnsPerSample(digitiser);  
   
+  waveformDuration = (float)NSamples * nsPerSample;
+
   if (!tree) return;
   rawRootTree = tree;
   fCurrent = -1;
@@ -124,18 +146,14 @@ void PMTAnalyser::Init(TTree *tree,
   rawRootTree->SetBranchAddress("minT", &minT, &b_minT);
   rawRootTree->SetBranchAddress("maxT", &maxT, &b_maxT);
 
-  //!!!!!!!!
-  // temporary
-  Bool_t newFile = kFALSE;
-  
-  if(newFile){
+  if(oldRootFileVersion)
+    rawRootTree->SetBranchAddress("pulse",waveform, &b_waveform);
+  else{
     rawRootTree->SetBranchAddress("waveform", waveform, &b_waveform);
     rawRootTree->SetBranchAddress("peakT_ns", &peakT_ns, &b_peakT_ns);
     rawRootTree->SetBranchAddress("peakV_mV", &peakV_mV, &b_peakV_mV);
   }
-  else
-    rawRootTree->SetBranchAddress("pulse",waveform, &b_waveform);
-
+  
   Notify();
 }
 

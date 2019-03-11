@@ -43,6 +43,8 @@
 #include "PMTAnalyser.h"
 #include "ShippingData.h"
 #include "fileNameParser.h"
+    
+#include "TCanvas.h"
 
 using namespace std;
 
@@ -56,9 +58,15 @@ int main(Int_t argc, Char_t *argv[]){
   ShippingData * shipData = nullptr;
 
   Char_t  digitiser = 'V';
-  
-  //Float_t thresh_mV  = 10.0;
-  //Int_t   darkRate   = 8000.;
+
+  // Old style BinToRoot output
+  // or new BinToRoot output?
+  // (pulse[] -> waveform[] e.g.)
+  Bool_t oldRootFileVersion = kFALSE;
+
+  // Dark Rate
+  Float_t thresh_mV  = 10.0;
+  Int_t   darkRate   = 8000.;
   
   // argv should be a path to a file
   // or list of files ( wildcards work )
@@ -79,7 +87,7 @@ int main(Int_t argc, Char_t *argv[]){
      cout << " PMT      " << pmtID(argv[iFile])    << endl;
      cout << " Location " << location(argv[iFile]) << endl;
      cout << " Test     " << test(argv[iFile]) << endl;
-
+     
      if( test(argv[iFile])=='G')
        cout << " HV step  " << HVStep(argv[iFile]) << endl; 
      
@@ -92,18 +100,56 @@ int main(Int_t argc, Char_t *argv[]){
      // initalise analysis object using tree 
      PMT = new PMTAnalyser(tree,
 			   digitiser,
-			   test(argv[iFile]));
+			   test(argv[iFile]),
+			   oldRootFileVersion);
      
-     // Double Chooz dark rate threshold (x10 to include amplification)
-     // darkRate   = PMT->DarkRate(thresh_mV);
-     // cout << " Hamamatsu Dark Rate = " << shipData->GetDR() << endl;
-     // cout << " PMT Test  Dark Rate = " << darkRate          << endl;
+     // Set plot attributes to bespoke TStyle 
+     PMT->SetStyle();
      
-     // Make Filtered Histograms
-     PMT->Make_FFT_Histos();
+     // Limit to subset of entries for quicker testing
+     //PMT->SetTestMode(kTRUE);
      
-     //PMT->Make_Fixed_Gate_Filtered();
+     cout << " Hamamatsu Dark Rate = " << shipData->GetDR() << endl;
 
+     Bool_t investigateDarkRate = kFALSE;
+
+     if(investigateDarkRate){
+       if(oldRootFileVersion){
+	 cout << " Dark Rate method only applicable to new BinToRoot files " << endl;
+       }
+       else{
+	 darkRate   = PMT->DarkRate(thresh_mV);
+	 cout << " PMT Test  Dark Rate = " << darkRate          << endl;
+       }
+     }
+
+     Bool_t investigateFFT = kTRUE;
+     // Make Filtered Histograms
+     if(investigateFFT){ 
+       TCanvas * canvas = PMT->Make_FFT_Canvas();
+       
+       TString canvasName;
+       canvasName.Form("./Plots/FFT_Run_%d_PMT_%d_Test_%c.pdf",
+		       run(argv[iFile]),
+		       pmtID(argv[iFile]),
+		       test(argv[iFile]));
+       
+       if(canvas){
+	 canvas->SaveAs(canvasName);
+	 
+	 canvasName.Form("./Plots/FFT_Run_%d_PMT_%d_Test_%c.root",
+			 run(argv[iFile]),
+			 pmtID(argv[iFile]),
+			 test(argv[iFile]));
+	 
+	 canvas->SaveAs(canvasName);
+       }
+       else{
+	 cout << endl;
+	 cout << " No canvas produced " << endl;
+       }
+     }
+       
   }
   
   // To Do:

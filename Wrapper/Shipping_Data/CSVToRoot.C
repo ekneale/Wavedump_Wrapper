@@ -6,14 +6,14 @@
 
 void CSVToRoot(){
   
-  TFile *outFile = new TFile("ShippingData.root","RECREATE");
+  TFile *outFile = new TFile("ShippingData_AllPMTs.root","RECREATE");
   
   TH1F *h1 = new TH1F("h1","x distribution",100,-4,4);
   
   TTree *T = new TTree("ShippingData","Arrg, this be Shipping Data from CSV file");
   Long64_t nlines;
   TString lineFormat = "PMT/I:Sk/F:Skb/F:Sp/F:Idb/F:EBB/I:DR/I:TTS/F:PTV/F";
-  nlines = T->ReadFile("./ShippingData_BoulbyPMTs.csv",lineFormat,',');
+  nlines = T->ReadFile("ShippingData_AllPMTs.csv",lineFormat,',');
   
   printf(" Shipping Data for %lld PMTs \n",nlines);
 
