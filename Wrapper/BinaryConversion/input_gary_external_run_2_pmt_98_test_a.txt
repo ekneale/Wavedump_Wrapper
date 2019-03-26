@@ -1,0 +1,7 @@
+2
+98
+4
+A
+/Volumes/GS_External/BinaryData/
+/Volumes/GS_External/RawRootData/
+V

@@ -77,15 +77,15 @@ endif
 
 #-------------------------------------------------------------------------
 
-SRC           = PMTAnalyser.C DataInfo.C ShippingData.C
+SRC           = PMTAnalyser.C DataInfo.C
 
 OBJ           = $(SRC:.C=.o)
 HDR           = $(SRC:.C=.h)
 DEP           = $(SRC:.C=.d)
-OBJS          = $(OBJ) executePMTAnalysisDict.o
+OBJS          = $(OBJ) exePADict.o
 
 LIBEXEPA      = libExePA.so
-PROGRAMS      = executePMTAnalysis
+PROGRAMS      = exePA
 
 all:            $(PROGRAMS)
 
@@ -93,18 +93,18 @@ $(LIBEXEPA):	$(OBJS)
 		$(LD) $(LDFLAGS) $(SOFLAGS) -o $@ $^
 		@echo "$@ done"
 
-executePMTAnalysis:		executePMTAnalysis.o $(LIBEXEPA)
-		$(LD) $(LDFLAGS) executePMTAnalysis.o -L$(CURDIR) -lExePA $(GLIBS) -o $@
+exePA:		exePA.o $(LIBEXEPA)
+		$(LD) $(LDFLAGS) exePA.o -L$(CURDIR) -lExePA $(GLIBS) -o $@
 
 clean:
 		rm -f *.o *.d *.so $(PROGRAMS)
 
 realclean:	clean
 		rm -f *.d *~ core
-		rm -f executePMTAnalysisDict.*
+		rm -f exePADict.*
 
-executePMTAnalysisDict.C: 	$(HDR) ExePA_LinkDef.h
-		@echo "Generating dictionary executePMTAnalysisDict..."
+exePADict.C: 	$(HDR) ExePA_LinkDef.h
+		@echo "Generating dictionary exePADict..."
 		$(ROOTSYS)/bin/rootcint -f $@ -c $(INCLUDES) $(HDR) \
 		 ExePA_LinkDef.h
 

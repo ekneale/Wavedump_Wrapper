@@ -78,8 +78,8 @@ typedef std::tuple<double,double,double,double,double,double> InitParams;
 InitParams initializeFit(TH1F* h){
 
   TSpectrum *spec = new TSpectrum(3,3);
-  Int_t nfound = spec->Search(h,1,"goff",0.0002);
-  std::cout << "found peaks " << nfound << std::endl;
+  Int_t nfound = spec->Search(h,2,"goff",0.0002);
+  std::cout << "\n found peaks " << nfound << std::endl;
 
   /*** returns positions of Pedestal and Signal approx.****/
   Float_t *peaks;
@@ -95,39 +95,46 @@ InitParams initializeFit(TH1F* h){
     int binMax = h->GetMaximumBin();
     sigPeak = h->GetBinCenter(binMax);
     pedPeak = peaks[0];
-    std::cout << "charge is " << sigPeak << " for 1-peak spectrum \n" << std::endl;
+    std::cout << "approximate charge is " << sigPeak << " for 1-peak spectrum" << std::endl;
   }
     
-
-  if (nfound == 3 && peaks[0] < -5){
-    sigPeak = peaks[2];
-    pedPeak = peaks[1];
-    std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
-      
-  }
-
-  if (nfound == 3 && peaks[0] > -5){
-    sigPeak = peaks[1];
-    pedPeak = peaks[0];
-    std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
-  }
-
   if (nfound ==2) {
     sigPeak = peaks[1];
     pedPeak = peaks[0];
-    std::cout << "charge is " << sigPeak << " for 2-peak spectrum \n" << std::endl;
+    std::cout << "charge is " << sigPeak << " for 2-peak spectrum" << std::endl;
       
   } 
 
-  if (sigPeak < 100){
-    sigPeak = 400;
+  if ( (nfound == 3) && (peaks[0] < -5)) {
+      sigPeak = peaks[2];
+      pedPeak = peaks[1];
+      std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
+
+  }
+
+  if (nfound == 3 && peaks[0] > -5 && peaks[1] > 100){
+        sigPeak = peaks[1];
+        pedPeak = peaks[0];
+        std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
+  }
+
+  if (nfound == 3 && peaks[0] > -5 && peaks[1] < 100){
+        sigPeak = peaks[2];
+        pedPeak = peaks[0];
+        std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
+  }
+  
+  if (sigPeak < 20){
+        sigPeak = 35;
+        pedPeak = peaks[0];
+        std::cout << "charge is " << sigPeak << " for very low-gain peak \n" << std::endl;
   }
 
 
   /*** Find the valley ***/
   Int_t SigSig = h->FindBin(sigPeak); //Signal bin approx **used to find valley position
   Int_t PedPed  = h->GetMaximumBin(); //pedestal bin
-   int PedMax = h->GetMaximum(); // pedestal events
+  int PedMax = h->GetMaximum(); // pedestal events
 
 
 
@@ -136,7 +143,7 @@ InitParams initializeFit(TH1F* h){
 
 
   /****Finding the Valley*****/
-  for(int i = PedPed; i< SigSig ;i++){
+  for(int i = PedPed+5; i< SigSig ;i++){
     Compare[0] = h->GetBinContent(i);
 
     if(Compare[0] < Compare[1]){
@@ -158,7 +165,7 @@ InitParams initializeFit(TH1F* h){
   int Events = h->GetEntries();  // # of events
   double Ratio = (double) Noise / (double) Events; // Ratio of Random events to photon events
 
-  std::cout << "Peaks " << peaks[0] << " " << sigPeak << " " << sped <<   " " << ssignal << " "   <<  Ratio << std::endl;
+  std::cout << "Peaks " << peaks[0] << " " << sigPeak << " " << sped <<   " " << ssignal << " "   <<  Ratio << "\n" << std::endl;
 
   double valleyPos = h->GetBinCenter(ValleyBin) ;
 
@@ -222,9 +229,9 @@ TH1D* findHisto(TFile *input, int histoVersion = 0){
  //        double minval = -500,
   //       double maxval = 2000 ){
 
-Result* fitModel(TH1F* fhisto,
-            double minval = -100,
-            double maxval = 1500){
+Result* fitModel(TH1F* fhisto, int pmt, int hv,
+            double minval = -500,
+            double maxval = 2000){
 
   Result* res = new Result();
 
@@ -238,9 +245,12 @@ Result* fitModel(TH1F* fhisto,
   InitParams params = initializeFit(fhisto);
   double valleyPos = std::get<5>(params);
   double peakPos = std::get<0>(params)+ std::get<1>(params);
+  double pedPos = std::get<0>(params);
 
   // gaussian fit to max
-  fhisto->Fit("gaus", "","", peakPos - 100, peakPos +120 );
+  double gaussMin = valleyPos+20;
+  double gaussMax = peakPos+120;
+  fhisto->Fit("gaus", "","", gaussMin, gaussMax );
   TF1* gf = fhisto->GetFunction("gaus");
   TF1* f = (TF1*)gf->Clone();
   double sval = f->Eval(f->GetParameter(1));
@@ -250,7 +260,7 @@ Result* fitModel(TH1F* fhisto,
   f->Draw("SAME");
 
 
-  TFitResultPtr pres= fhisto->Fit("pol2", "S", "",valleyPos - 50 , valleyPos +50);
+  TFitResultPtr pres= fhisto->Fit("pol2", "S", "", pedPos + 30 , valleyPos +50);
   TFitResult* polres = pres.Get();
   double ea = polres->Error(2); double eb = polres->Error(1);
 
@@ -263,7 +273,7 @@ Result* fitModel(TH1F* fhisto,
   // find min of parabola
   TF1* f2 = fhisto->GetFunction("pol2");
   double a = f2->GetParameter(2); double b = f2->GetParameter(1);
-  double vval = f2->GetMinimum( valleyPos -50, valleyPos +50);
+  double vval = f2->GetMinimum( valleyPos -30, valleyPos +30);
   double sum = std::pow(ea/a,2) +  std::pow(eb/b,2.) - (2*rho/(a*b));
   double xmin = -b/(2*a);
   double x2 = xmin *(1 + sum);
@@ -279,12 +289,12 @@ Result* fitModel(TH1F* fhisto,
   f2->Draw("SAME");
   f->Draw("SAME");
 
-  canvas->SaveAs("./Plots/PeakToValley.pdf");
+  canvas->SaveAs(Form("./Plots/PeakToValley_PMT_%d_HV_%d.C",pmt,hv));
 
   // fill result
       
   res->peak.value = f->GetParameter(1);
-  if (res->peak.value < 0){
+  if (res->peak.value < 20){
     double XMin = 28.;
     double XMax = 1500.;
     fhisto->GetXaxis()->SetRange(XMin,XMax);
@@ -425,13 +435,13 @@ int main(int argc,char **argv){
 
     TH1F* fhisto = h2h(speData);
 
-    printf("Getting data from SPE spectrum...\n");
+    printf("\n Getting data from SPE spectrum...\n");
 
 	
 	/***Find the value at the maximum***/
-    Result * res = fitModel(fhisto);
+    Result * res = fitModel(fhisto,pmt,hv);
     cout << endl;
-    cout << "peak           = " << res->peak.value << " (" << res->peak.error << ") " << endl;
+    cout << "peak = " << res->peak.value << " (" << res->peak.error << ") \n " << endl;
     float signal = res->peak.value;
     float signalError = res->peak.error;
 
@@ -464,7 +474,7 @@ int main(int argc,char **argv){
   
   // Making the HV fit ========================================================================
 
-  TGraph *Gain;
+   TGraph *Gain;
 
   //Plot gain vs voltage for each PMT
   Gain = new TGraph(5,hvVals,gainVals);

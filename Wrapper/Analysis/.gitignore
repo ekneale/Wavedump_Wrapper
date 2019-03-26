@@ -1,3 +1,11 @@
 BinToRoot
 outputFile.root
 Plots/
+nohup*
+executePMTAnalysisDict_rdict.pcm
+executePMTAnalysisDict.C
+executePMTAnalysis
+libExePA.so
+ShippingData_C_ACLiC_dict_rdict.pcm
+Backups/
+canvas.pdf

@@ -1,0 +1,9 @@
+1001
+16
+0
+S
+/Users/gsmith23/Desktop/Watchman/Testing/Wavedump_Wrapper/BinaryData/
+/Users/gsmith23/Desktop/Watchman/Testing/Wavedump_Wrapper/RawRootData/
+D
+1
+S

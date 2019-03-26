@@ -52,6 +52,7 @@ double value;
 double error;
 
 
+
 } ValueWithError;
 
 typedef struct {
@@ -75,62 +76,73 @@ void fillValueWithError(ValueWithError* val,RooRealVar* var){
 
 typedef std::tuple<double,double,double,double,double,double> InitParams;
 
+//========== Find approximate peak, pedestal and valley values for fit paramaters ====================
+
 InitParams initializeFit(TH1F* h){
 
   TSpectrum *spec = new TSpectrum(3,3);
-  Int_t nfound = spec->Search(h,2,"goff",0.0002);
+  Int_t nfound = spec->Search(h,3,"goff",0.0002);
   std::cout << "found peaks " << nfound << std::endl;
 
-  /*** returns positions of Pedestal and Signal approx.****/
+  /*** Find the approximate charge at the maximum of the SPE peak ***/
   Float_t *peaks;
   peaks = spec->GetPositionX();
   float sigPeak; float pedPeak;
   std::cout << peaks[0] << " " << peaks[1]  << " " << peaks[2] << std::endl;
   
-  /*** Find the approximate charge at the maximum of the SPE peak ***/
+  /*** Apply workarounds if TSpectrum fails for the varying HV steps ***/
+
   if (nfound == 1){
-    double XMin = 28.;
-    double XMax = 1500.;
-    h->GetXaxis()->SetRange(XMin,XMax);
-    int binMax = h->GetMaximumBin();
-    sigPeak = h->GetBinCenter(binMax);
-    pedPeak = peaks[0];
-    std::cout << "charge is " << sigPeak << " for 1-peak spectrum \n" << std::endl;
-  }
-    
-
-  if (nfound == 3 && peaks[0] < -5){
-    sigPeak = peaks[2];
-    pedPeak = peaks[1];
-    std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
-      
-  }
-
-  if (nfound == 3 && peaks[0] > -5){
-    sigPeak = peaks[1];
-    pedPeak = peaks[0];
-    std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
+      double XMin = 28.;
+      double XMax = 1500.;
+      h->GetXaxis()->SetRange(XMin,XMax);
+      int binMax = h->GetMaximumBin();
+      sigPeak = h->GetBinCenter(binMax);
+      pedPeak = peaks[0];
+      std::cout << "charge is " << sigPeak << " for 1-peak spectrum \n" << std::endl;
   }
 
   if (nfound ==2) {
-    sigPeak = peaks[1];
-    pedPeak = peaks[0];
-    std::cout << "charge is " << sigPeak << " for 2-peak spectrum \n" << std::endl;
-      
+      sigPeak = peaks[1];
+      pedPeak = peaks[0];
+      std::cout << "charge is " << sigPeak << " for 2-peak spectrum \n" << std::endl;
+
   }
 
-  if (sigPeak < 100) sigPeak = 300;
+  if ( (nfound == 3) && (peaks[0] < -5)) {
+      sigPeak = peaks[2];
+      pedPeak = peaks[1];
+      std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
+
+  }
+
+  if (nfound == 3 && peaks[0] > -5 && peaks[1] > 100){
+        sigPeak = peaks[1];
+        pedPeak = peaks[0];
+        std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
+  }
+
+  if (nfound == 3 && peaks[0] > -5 && peaks[1] < 100){
+        sigPeak = peaks[2];
+        pedPeak = peaks[0];
+        std::cout << "charge is " << sigPeak << " for 3-peak spectrum \n" << std::endl;
+  }
   
+  if (sigPeak < 20){
+        sigPeak = 35;
+        pedPeak = peaks[0];
+        std::cout << "charge is " << sigPeak << " for very low-gain peak \n" << std::endl;
+  }
+
 
 
   /*** Find the valley ***/
-  Int_t SigSig = h->FindBin(sigPeak); //Signal bin approx **used to find valley position
-  Int_t PedPed  = h->FindBin(pedPeak); //pedestal bin
+  Int_t SigSig = h->FindBin(sigPeak); //signal bin approx
+  Int_t PedPed  = h->FindBin(pedPeak); //pedestal bin approx
   int PedMax = h->GetMaximum(); // pedestal events
 
   int Compare[2] = {PedMax,PedMax}; // array to store 2 numbers for comparison to determine which is larger
   Int_t ValleyBin = 0; //to hold valley bin number
-
 
   /****Finding the Valley*****/
   for(int i = PedPed; i< SigSig ;i++){
@@ -143,8 +155,8 @@ InitParams initializeFit(TH1F* h){
   }//end for
   std::cout << "Ped pos " << PedPed << "Sig pos " << SigSig << "Valley bin " << ValleyBin << std::endl;
 
-  double ssignal = (sigPeak -  h->GetBinCenter(ValleyBin))/3.;// signal fit minimum?
-  double sped = (h->GetBinCenter(ValleyBin) - peaks[0])/10.;// pedestal fit minimum?
+  double ssignal = (sigPeak -  h->GetBinCenter(ValleyBin))/3.;
+  double sped = (h->GetBinCenter(ValleyBin) - peaks[0])/10.;
 
    /*****Finding Pedestal events****/
   int Noise = 0; //to hold pedestal events
@@ -162,8 +174,10 @@ InitParams initializeFit(TH1F* h){
   std::cout << "Valley = " << valleyPos << std::endl;
   
   return InitParams(pedPeak,sigPeak-pedPeak,sped,ssignal,Ratio,valleyPos);
-}
+} // initializeFit
 
+
+//========== Create output spectra ====================
 
 TH1F* h2h(TH1D* hold ){
 
@@ -184,8 +198,9 @@ TH1F* h2h(TH1D* hold ){
   }
   std::cout << "histo " << h->GetEntries()<< " " <<  hold->GetEntries() <<  " " << sum <<  std::endl;
   return h;
-}
+} // h2h
 
+//========== Carry out fit ====================
 
 Result* fitModel(TH1F* fhisto,
             double minval = -500,
@@ -257,6 +272,7 @@ Result* fitModel(TH1F* fhisto,
   res->peakToValley.value = sval/vval;
   res->peakToValley.error = ef;
 
+  /*** Apply workaround if fit fails ***/
   if (res->peak.value < 0){
     double XMin = 28.;
     double XMax = 1500.;
@@ -267,34 +283,37 @@ Result* fitModel(TH1F* fhisto,
   }
 
  return res;
-}
+
+} // fitModel
 
 
-//=========== Peak Fitter ===============
+//========== Gain curve fit ====================
 
-
-
-
-//======= Gain Curve Fitters =============
 inline double PowerFunc(double x, double k, double n)
 {
   return pow((k*x),n)*10.00;
-}
+} // PowerFunc
 
 double fitPow(double *x, double *k)
 {
   return PowerFunc(x[0], k[0], k[1]);
-}
+} // fitPow
 
-//=========================================================================================================================================
+
+
+//============================================================
 
 int main(int argc,char **argv){	
   
-  // ******************
-  // * Initialization *
-  // ******************
 	
-  //Read in the HV data ====================================================================================
+  /*** Read in the HV data ***/
+
+  int nominalHV;
+  int pmt;
+  int loc;
+  int run =1;
+  int pmtHV[5];
+  
   string hvfile = "../HVScan.txt";
   ifstream file(hvfile.c_str());
   string hvdat;
@@ -305,10 +324,6 @@ int main(int argc,char **argv){
   for (int i=0; i<125; i++)
     HVstep.push_back(step);
   
-
-  int pmtHV[5];
-  
- 
   for (int i=0; i<125; i++){
     for (int j=0; j<7; j++){
       file >> hvdat;
@@ -326,11 +341,8 @@ int main(int argc,char **argv){
 
   }
 
-  int nominalHV;
-  int pmt;
-  int loc;
-  int run =1;
 
+  /*** Assign PMT numbers and locations of PMTs in the rig ***/
   static const int nPMTsA = 80;
   static const int nPMTsB = 20;
   static const int nPMTs  = nPMTsA + nPMTsB;
@@ -367,18 +379,9 @@ int main(int argc,char **argv){
   int  locBList[4] = {4,5,6,7};
 
   
-  //========================================================================================================
   char histname[200]= "";
-    
-				
-  
-  //======================================================================================================
-  
-  
-  // ***************
-  // * Set up ROOT *
-  // ***************
  
+
   for (int iPMT = 0 ; iPMT < nPMTs ; iPMT++){
 
     if( iPMT < nPMTsA ){
@@ -390,6 +393,8 @@ int main(int argc,char **argv){
         loc = locBList[(iPMT-nPMTsA)%4];
     }
 
+
+    /*** Assign HV values for each PMT ***/ 
     for (int i=0;i<125; i++){
      
       if (pmt == PMT_number[i]){
@@ -406,15 +411,12 @@ int main(int argc,char **argv){
     }
 
 
-    double hvVals[5]; double gainVals[5]; double gainValsError[5];
 
-    // Fitting the SPE Spectrum =======================================================================
-  
-    for (int r=1;r<5;r++){ 
+    //========== Fit the SPE Spectrum ====================
     
-    // *************************
-    // * Create output spectra *
-    // *************************
+    double hvVals[5]; double gainVals[5]; double gainValsError[5];
+  
+    for (int r=0;r<5;r++){ 
     
       int hv = r+1; // gain test number
     
@@ -423,7 +425,7 @@ int main(int argc,char **argv){
       s.ls();
 
       char root_name[30];
-      sprintf(root_name, "hQ_Fixed_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);
+      sprintf(root_name, "hQ_Peak_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);
       TH1D *speData = (TH1D*)s.Get(root_name);
 
       TH1F* fhisto = h2h(speData);
@@ -439,10 +441,10 @@ int main(int argc,char **argv){
       cout << endl;
       cout << "peak           = " << signal << " (" << signalError << ") " << endl;
         
-
-        
-
       printf(" voltage is  %d , charge is %f \n\n\n\n",pmtHV[r],signal); 
+
+
+      /*** Calculate the gain ***/
   	  float amplification = 10.0; //amplification via amplifier
       float splitter = 2.0; //correction for use of splitter box
 	  float impedence = 50.0;
@@ -454,26 +456,24 @@ int main(int argc,char **argv){
   
     cout << "out" << endl;
     
+    // ========== Make the HV fit ====================
+
     TString canvasNameTemp    = "", canvasName    = "";
 
     canvasNameTemp = "Canvas_Run_%d_PMT_%d_Loc_%d_HV_G";
     canvasName.Form(canvasNameTemp,run,pmt,loc);
 
- 
-
     TCanvas *canvas=new TCanvas(canvasName,canvasName,1);
-  
-    // Making the HV fit ========================================================================
 
     TGraph *Gain;
 
-    //Plot gain vs voltage for each PMT
+    /*** Plot gain vs voltage for each PMT ***/
     Gain = new TGraph(5,hvVals,gainVals);
 
     Gain->SetMarkerStyle(2);
     Gain->SetMarkerSize(1);
 		
-    //fit a curve of form y = 10*(kx)^n to the data
+    /*** Fit the gain curve ***/
     double fitMin = hvVals[0];
     double fitMax = hvVals[4];
     TF1 *f14 = new TF1("f14",fitPow,fitMin,fitMax,2);
@@ -481,34 +481,31 @@ int main(int argc,char **argv){
     f14->SetParameter(1,10);
     TFitResultPtr tfrp14=Gain->Fit("f14","RSE");
 
-    //Draw the plot plus fit
     Gain->Draw("AP");
     Gain->GetYaxis()->SetTitle("Gain (10^7)");
     Gain->GetXaxis()->SetTitle("Applied Voltage (V)");
-    //  Gain->SetTitle(Gain);
-		
-    //Bias for 10^7 GAIN ==========================================================================================================
-    //not based on on a fit to the peak
-
-    //calculate the operating voltage for 10^7 gain
-    double operatingHV = pow(1.0/10.,(1./f14->GetParameter(1)))/(f14->GetParameter(0)); //inverse of fit function with y=1 (ie y= 1e7 gain)
+	
+	
+    /*** Calculate the operating voltage for 10^7 gain ***/
+    double operatingHV = pow(1.0/10.,(1./f14->GetParameter(1)))/(f14->GetParameter(0)); //inverse of fit function with y=1 (1e7 gain)
     double operatingHVError = abs(pow(1.0/10.,(1./f14->GetParameter(1)))/(f14->GetParameter(0)) - pow(1.0/10.,(1./(f14->GetParameter(1)+f14->GetParError(1))))/(f14->GetParameter(0)+f14->GetParError(0)));
     printf("\n\n\n\n\n Operating voltage for 10^7 Gain for PMT%d: %f  +/- %f \n\n\n\n\n",pmt, operatingHV, operatingHVError );
 
-    //check if voltages.root exists - if not, create it 
-    //and set up tree and branches
+    //check if voltages.root exists - if not, create it and set up tree and branches
     //if it exists, add to the branches
 
     Double_t chi2 = f14->GetChisquare();
+    Double_t NDf = f14->GetNDF();
+    Double_t prob = f14->GetProb();
 
-    //======= Write ntuples to file ===========
 
+    /*** Write ntuples to file ***/
     ifstream fileStream("voltages_peakFit.root");
     if(!fileStream.good()){
       TFile *outfile = new TFile("voltages_peakFit.root","RECREATE");
 
-      TNtuple *voltages = new TNtuple("voltages","voltages","pmt:operatingHV:operatingHVError:nominalHV:chi2");
-      voltages->Fill(pmt,operatingHV,operatingHVError,nominalHV,chi2);
+      TNtuple *voltages = new TNtuple("voltages","voltages","pmt:operatingHV:operatingHVError:nominalHV:chi2:NDf:prob");
+      voltages->Fill(pmt,operatingHV,operatingHVError,nominalHV,chi2,NDf,prob);
       voltages->Write();
       outfile->Close();
       delete outfile;
@@ -517,12 +514,11 @@ int main(int argc,char **argv){
     else{
       TFile *outfile = new TFile("voltages_peakFit.root","UPDATE");
       TNtuple *voltages = (TNtuple*)outfile->Get("voltages");
-      voltages->Fill(pmt,operatingHV,operatingHVError,nominalHV,chi2);
+      voltages->Fill(pmt,operatingHV,operatingHVError,nominalHV,chi2,NDf,prob);
       voltages->Write("",TObject::kOverwrite);
       outfile->Close();
       delete outfile;
     }
-	//=============================================================================================================================
   
 
     canvasName = "./Plots/";
