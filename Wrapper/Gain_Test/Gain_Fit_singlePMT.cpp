@@ -228,24 +228,24 @@ RooAddPdf* makePGaussPDF(int n, RooRealVar* counts, RooFormulaVar* k,
 }
  
 
-RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psval2,  double mval, double sval, double f1peval,double vmval, double vaval = 0.03, double fvval = 0.3){// counts,pedPeak,sigPeak-pedPeak,sped,ssignal,Ratio,valleyPos
+RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psval2,  double mval, double sval, double f1peval,double vmval, int expvar, double vaval = 0.03, double fvval = 0.3){// counts,pedPeak,sigPeak-pedPeak,sped,ssignal,Ratio,valleyPos
 
   std::cout << "pedestal mean " << pmval << "pedestal sigma " << psval << "SPE mean "  << mval << "SPE sigma "  << sval  << std::endl;
   std::cout << "SPE fraction " << f1peval << "valley min " << vmval << "valley alpha " << vaval << std::endl;
   
   //construct the pedestal pdf 
   RooRealVar* pedm = new RooRealVar("pedmean","pedmean",pmval, pmval - 5*psval, pmval + 5*psval );   // pedestal position
-  RooRealVar* peds = new RooRealVar("pedsigma","pedsigma",psval,0,5*psval );
+  RooRealVar* peds = new RooRealVar("pedsigma","pedsigma",psval,0,5*psval ); // pedestal sigma
   RooRealVar* peds2 = new RooRealVar("pedsigma2","pedsigma2",psval2,psval,10*psval ); // pedestal sigma
   
-  RooRealVar* fped = new RooRealVar("fped","fped",0.9,0,1 );//TODO changed according to pedestal fraction from new charge histos
+  RooRealVar* fped = new RooRealVar("fped","fped",0.9,0,1 );
   RooGaussian* pedgauss = new  RooGaussian("pedgauss","pedgauss", *counts, *pedm, *peds);
   RooGaussian* pedgauss2 = new  RooGaussian("pedgauss2","pedgauss2", *counts, *pedm, *peds2);
 
   RooAddPdf* pedpdf = new RooAddPdf("pedpdf", "pedpdf",RooArgList(*pedgauss,*pedgauss2), *fped);
 
   //construct the exponential fit to the thermionic emission
-  RooRealVar* vm = new RooRealVar("vmin","vmin",pmval+psval*4,8,15); //TODO best nominal val so far: pmval+psval*4, vaval range 0,0.04
+  RooRealVar* vm = new RooRealVar("vmin","vmin",pmval+psval*3,8,15); //TODO best nominal val so far: pmval+psval*4, vaval range 0,0.04
   RooRealVar* va = new RooRealVar("valpha","valpha",vaval,0,0.04); 
   RooExpWindow* vexp = new RooExpWindow("vexp","vexp",*counts,*va,*vm);
 
@@ -284,7 +284,7 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psva
   //then get the coefficients
   RooFormulaVar*  frac_ped1 = new RooFormulaVar("frac_ped1", "frac_ped1", "TMath::Exp(-npe)", *npe); //Poisson for 0 Photo electrons Poisson(0,npe)
   RooFormulaVar* frac_pe1 = new RooFormulaVar("frac_pe1", "frac_pe1",  "TMath::Poisson(1,npe) ", *npe); // ""   for 1   ""
-//  RooFormulaVar* frac_pe3 = new RooFormulaVar("frac_pe3", "frac_pe3",  "TMath::Poisson(3,npe) ", *npe);
+  RooFormulaVar* frac_pe2 = new RooFormulaVar("frac_pe2", "frac_pe2",  "TMath::Poisson(2,npe) ", *npe); //TODO reduce the upper end of the range e.g. *npe/2.?
   RooRealVar* frac_v = new RooRealVar("frac_v","frac_v",fvval, 0,1); //fraction of events in the valley region
 
   RooAddPdf* smodel = new RooAddPdf("smodel","smodel",RooArgList(*pedpdf,*gauss), RooArgList(*frac_ped1,*frac_pe1));
@@ -310,8 +310,8 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,const RooArgList& fitpars){
 }
 
 //++++++ Call to the RooAddPdf fuction with initparams ++++++++
-RooAddPdf* makePMTPDF(RooRealVar* counts,InitParams& params){
-  return makePMTPDF(counts,std::get<0>(params),std::get<2>(params),2*std::get<2>(params), std::get<1>(params),std::get<3>(params),-log(std::get<4>(params)),std::get<5>(params));
+RooAddPdf* makePMTPDF(RooRealVar* counts,InitParams& params,int expvar){
+  return makePMTPDF(counts,std::get<0>(params),std::get<2>(params),2*std::get<2>(params), std::get<1>(params),std::get<3>(params),-log(std::get<4>(params)),std::get<5>(params),expvar);
 }
 
 //++++++++++ Get the values from the fit +++++++++++++++
@@ -409,8 +409,14 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
   InitParams params = initializeFit(fhisto);
   RooRealVar* counts = new RooRealVar("charge", "charge", 0,minval, maxval);
   RooDataHist data("data", "dataset", *counts , fhisto);
+  if (hv < 4){
+    expvar = 4;
+  }
+  else {
+    expvar = 3;
+  }
 
-  RooAddPdf* model = makePMTPDF(counts,params);
+  RooAddPdf* model = makePMTPDF(counts,params,expvar);
 
   RooFitResult* fres = model->fitTo(data,Save());
 
@@ -419,7 +425,7 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
   data.plotOn(frame);
 
   model->plotOn(frame,Components("pedpdf"),LineColor(kOrange),LineStyle(2));
-  model->plotOn(frame, Components("gauss"),LineColor(kBlue), LineStyle(2));
+//  model->plotOn(frame, Components("gauss"),LineColor(kBlue), LineStyle(2));
 //  model->plotOn(frame, Components("gauss2"),LineColor(kGreen), LineStyle(2));
 //  model->plotOn(frame, Components("gauss3"),LineColor(kGreen), LineStyle(2));
   model->plotOn(frame, Components("vexp"),LineColor(kBlack),LineStyle(2));
@@ -441,7 +447,7 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
   xachse->SetTitle("Relative Charge");
   //frame->SetMaximum(max);
   frame->Draw();
-  canvas->SaveAs(Form("./Plots/FullFit/Fit_Run_1_PMT_%d_HV_%d_.C",pmt,hv));
+  canvas->SaveAs(Form("./Plots/FullFit/Fit_Run_1_PMT_%d_HV_%d_Peak.C",pmt,hv));
   
  
   Result* res = propagateAndFill(counts,model,fres);
@@ -477,7 +483,7 @@ int main(int argc,char **argv){
   int run =1;
   int pmtHV[5];
   char histname[200]= "";
- 
+
   string hvfile = "../HVScan.txt";
   ifstream file(hvfile.c_str());
   string hvdat;
@@ -543,7 +549,7 @@ int main(int argc,char **argv){
     
     double hvVals[5]; double gainVals[5]; double gainValsError[5];
   
-    for (int r=1;r<5;r++){ 
+    for (int r=3;r<5;r++){ 
     
       int hv = r+1; // gain test number
    
@@ -552,7 +558,7 @@ int main(int argc,char **argv){
       s.ls();
 
       char root_name[30];
-      sprintf(root_name, "hQ_Filter_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);
+      sprintf(root_name, "hQ_Peak_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);//TODO try with gate-around-peak histograms 
       TH1D *speData = (TH1D*)s.Get(root_name);
 
       TH1F* fhisto = h2h(speData);
