@@ -189,7 +189,7 @@ const char* varname(std::string header, std::string var){
   return (header + var).c_str();
 }
 
-RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psval2,  double mval, double sval, double f1peval,double vmval, double vaval = 0.03,double fvval = 0.3){//, double dmval = 15, double dsval = 20, double fdval = 0.9){
+RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psval2,  double mval, double sval, double f1peval,double vmval, int expvar, double vaval = 0.03,double fvval = 0.3){//, double dmval = 15, double dsval = 20, double fdval = 0.9){
 
   std::cout << "pedestal mean " <<pmval << "  pedestal sigma " << psval << "  SPE mean "  << mval << "SPE sigma "  << sval  << std::endl;
   std::cout << "SPE fraction " << f1peval << "  valley min " <<vmval<< "  valley alpha " << vaval << std::endl;
@@ -207,7 +207,7 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psva
   RooAddPdf* pedpdf = new RooAddPdf("pedpdf", "pedpdf",RooArgList(*pedgauss,*pedgauss2), *fped);
 
   //construct the exponential fit to the thermionic emission
-  RooRealVar* vm = new RooRealVar("vmin","vmin",pmval+psval*4,0,14); //TODO best nominal val so far: pmval+psval*4, vaval range 0,0.04
+  RooRealVar* vm = new RooRealVar("vmin","vmin",pmval+psval*expvar,0,14); //TODO best nominal val so far: pmval+psval*4, vaval range 0,0.04
   RooRealVar* va = new RooRealVar("valpha","valpha",vaval,0,0.04);
   RooExpWindow* vexp = new RooExpWindow("vexp","vexp",*counts,*va,*vm);
 
@@ -267,8 +267,9 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,const RooArgList& fitpars){
  return makePMTPDF( counts,fpedmean->getVal(),pedsigma->getVal(), pedsigma2->getVal(),  fmean->getVal(), fsigma->getVal(), f1pe->getVal(), vm->getVal(), va->getVal(),fv->getVal());
 }
 
-RooAddPdf* makePMTPDF(RooRealVar* counts,InitParams& params){
-  return makePMTPDF(counts,std::get<0>(params),std::get<2>(params),2*std::get<2>(params), std::get<1>(params),std::get<3>(params),-log(std::get<4>(params)),std::get<5>(params));
+// ++++++++++ Call to the RooAddPdf function with initparams ++++++++++
+RooAddPdf* makePMTPDF(RooRealVar* counts,InitParams& params, int expvar){
+  return makePMTPDF(counts,std::get<0>(params),std::get<2>(params),2*std::get<2>(params), std::get<1>(params),std::get<3>(params),-log(std::get<4>(params)),std::get<5>(params),expvar);
 }
 
 Result* propagateAndFill(RooRealVar* counts,RooAddPdf* model ,RooFitResult* fres){
@@ -355,7 +356,15 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
   RooRealVar* counts = new RooRealVar("charge", "charge", 0,minval, maxval);
   RooDataHist data("data", "dataset", *counts , fhisto);
 
-  RooAddPdf* model = makePMTPDF(counts,params);
+  int expvar;
+  if (hv<4){
+    expvar = 4;
+  }
+  else {
+    expvar = 2;
+  }
+
+  RooAddPdf* model = makePMTPDF(counts,params,expvar);
 
   RooFitResult* fres = model->fitTo(data,Save());
 
