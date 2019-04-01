@@ -36,7 +36,7 @@
 #include "RooChebychev.h"
 #include "RooBernstein.h"
 #include "RooExponential.h"
-
+#include "RooExpWindow.h"
 
 #include "TObject.h"
 #include "TLegend.h"
@@ -189,11 +189,12 @@ const char* varname(std::string header, std::string var){
   return (header + var).c_str();
 }
 
-RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psval2,  double mval, double sval, double f1peval){//, double dmval = 15, double dsval = 20, double fdval = 0.9){
+RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psval2,  double mval, double sval, double f1peval,double vmval, int expvar, double vaval = 0.03,double fvval = 0.3){//, double dmval = 15, double dsval = 20, double fdval = 0.9){
 
-  std::cout << pmval << " " << psval << " "  << mval << " "  << sval  << " "  <<f1peval << std::endl;
+  std::cout << "pedestal mean " <<pmval << "  pedestal sigma " << psval << "  SPE mean "  << mval << "SPE sigma "  << sval  << std::endl;
+  std::cout << "SPE fraction " << f1peval << "  valley min " <<vmval<< "  valley alpha " << vaval << std::endl;
 
-
+  // construct the pedestal pdf
   RooRealVar* pedm = new RooRealVar("pedmean","pedmean",pmval, pmval - 5*psval, pmval + 5*psval );   // pedestal position
   RooRealVar* peds = new RooRealVar("pedsigma","pedsigma",psval,0,5*psval );
   RooRealVar* peds2 = new RooRealVar("pedsigma2","pedsigma2",psval2,psval,10*psval );
@@ -205,7 +206,12 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psva
 
   RooAddPdf* pedpdf = new RooAddPdf("pedpdf", "pedpdf",RooArgList(*pedgauss,*pedgauss2), *fped);
 
- // 1 pe
+  //construct the exponential fit to the thermionic emission
+  RooRealVar* vm = new RooRealVar("vmin","vmin",pmval+psval*expvar,0,14); //TODO best nominal val so far: pmval+psval*4, vaval range 0,0.04
+  RooRealVar* va = new RooRealVar("valpha","valpha",vaval,0,0.04);
+  RooExpWindow* vexp = new RooExpWindow("vexp","vexp",*counts,*va,*vm);
+
+  // single, double, etc pe
   RooRealVar* m0 = new RooRealVar("mean0","mean0",mval,  mval - 2*sval,  mval  + 10*sval);   // pedestal position
   RooRealVar* s0 = new RooRealVar("sigma0","sigma0", sval,0, 10*sval);  // pedestal sigma --not sure how to set generically 
 
@@ -239,10 +245,11 @@ RooRealVar* npe = new RooRealVar ("npe","npe", f1peval,0.01,1); // number of pho
  RooFormulaVar* frac_pe1 = new RooFormulaVar("frac_pe1", "frac_pe1",  "TMath::Poisson(1,npe) ", *npe); // ""   for 1   ""
  RooFormulaVar* frac_pe2 = new RooFormulaVar("frac_pe2", "frac_pe2",  "TMath::Poisson(2,npe) ",  *npe);
  RooFormulaVar* frac_pe3 = new RooFormulaVar("frac_pe3", "frac_pe3",  "TMath::Poisson(3,npe) ", *npe);
+ RooRealVar*    frac_v   = new RooRealVar("frac_v","frac_v",fvval,0,1); 
 
- RooAddPdf* smodel = new RooAddPdf("smodel","smodel",RooArgList(*pedpdf,*gauss,*gauss2,*gauss3), RooArgList(*frac_ped1,*frac_pe1,*frac_pe2));
-
- return smodel;
+ RooAddPdf* smodel = new RooAddPdf("smodel","smodel",RooArgList(*pedpdf,*gauss), RooArgList(*frac_ped1,*frac_pe1));
+ RooAddPdf* model = new RooAddPdf("model","model",RooArgList(*smodel,*vexp),*frac_v);
+ return model;
 }
 
 RooAddPdf* makePMTPDF(RooRealVar* counts,const RooArgList& fitpars){
@@ -253,12 +260,16 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,const RooArgList& fitpars){
  RooRealVar* fmean = (RooRealVar*)fitpars.find("mean0");
  RooRealVar* fsigma = (RooRealVar*)fitpars.find("sigma0");
  RooRealVar* f1pe = (RooRealVar*)fitpars.find("npe");
+ RooRealVar* vm = (RooRealVar*)fitpars.find("vmin");
+ RooRealVar* va = (RooRealVar*)fitpars.find("valpha");
+ RooRealVar* fv = (RooRealVar*)fitpars.find("frac_v");
 
- return makePMTPDF( counts,fpedmean->getVal(),pedsigma->getVal(), pedsigma2->getVal(),  fmean->getVal(), fsigma->getVal(), f1pe->getVal());//, dm->getVal(), ds->getVal(),fd->getVal());
+ return makePMTPDF( counts,fpedmean->getVal(),pedsigma->getVal(), pedsigma2->getVal(),  fmean->getVal(), fsigma->getVal(), f1pe->getVal(), vm->getVal(), va->getVal(),fv->getVal());
 }
 
-RooAddPdf* makePMTPDF(RooRealVar* counts,InitParams& params){
-  return makePMTPDF(counts,std::get<0>(params),std::get<2>(params),2*std::get<2>(params), std::get<1>(params),std::get<3>(params),1-std::get<4>(params));
+// ++++++++++ Call to the RooAddPdf function with initparams ++++++++++
+RooAddPdf* makePMTPDF(RooRealVar* counts,InitParams& params, int expvar){
+  return makePMTPDF(counts,std::get<0>(params),std::get<2>(params),2*std::get<2>(params), std::get<1>(params),std::get<3>(params),-log(std::get<4>(params)),std::get<5>(params),expvar);
 }
 
 Result* propagateAndFill(RooRealVar* counts,RooAddPdf* model ,RooFitResult* fres){
@@ -279,8 +290,6 @@ Result* propagateAndFill(RooRealVar* counts,RooAddPdf* model ,RooFitResult* fres
  //now the complicated ones that require sampling the fitted pdf/covariance
  TH1D* histo = new TH1D("valley", "valley", 200, res->ped.value,  res->pemean.value ); histo->Sumw2();
  TH1D* histo2 = new TH1D("peak", "peak", 200,  res->pemean.value - res->pewidth.value ,  res->pemean.value +3* res->pewidth.value ); histo2->Sumw2();
- TH1D* histo3 = new TH1D("peakToValley", "peakToValley", 100,  0,10 ); histo3->Sumw2();
- TH1D* histo4 = new TH1D("f", "f", 100,  0.,1 ); histo4->Sumw2();
 
  RooArgSet nset(*counts) ;
 
@@ -293,19 +302,13 @@ Result* propagateAndFill(RooRealVar* counts,RooAddPdf* model ,RooFitResult* fres
    double ppos = fmodel->GetMaximumX(res->pemean.value - res->pewidth.value ,res->pemean.value + res->pewidth.value);
    histo->Fill(vpos);
    histo2->Fill(ppos);
-   histo3->Fill(fmodel->Eval(ppos)/fmodel->Eval(vpos));
 
    counts->setRange("signal",vpos, 1000) ;
 
-   RooAbsReal* igx_s2 =  pdf->createIntegral(*counts,NormSet(*counts),Range("signal")) ;
-   histo4->Fill(igx_s2->getVal());
-
  }
 
- fillValueWithError(&res->valley,histo);
+// fillValueWithError(&res->valley,histo);
  fillValueWithError(&res->peak,histo2);
- fillValueWithError(&res->peakToValley,histo3);
- fillValueWithError(&res->fvalley,histo4);
 
  return res;
 }
@@ -336,8 +339,8 @@ TH1F* h2h(TH1D* hold ){
 //========== Carry out fit ====================
 
 Result* fitModel(TH1F* fhisto, int pmt, int hv,
-            double minval = -500,
-            double maxval = 2000,
+            double minval = -100,
+            double maxval = 1200,
             double max = 10000){
 
 //Result* res = new Result();
@@ -353,7 +356,15 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
   RooRealVar* counts = new RooRealVar("charge", "charge", 0,minval, maxval);
   RooDataHist data("data", "dataset", *counts , fhisto);
 
-  RooAddPdf* model = makePMTPDF(counts,params);
+  int expvar;
+  if (hv<4){
+    expvar = 4;
+  }
+  else {
+    expvar = 2;
+  }
+
+  RooAddPdf* model = makePMTPDF(counts,params,expvar);
 
   RooFitResult* fres = model->fitTo(data,Save());
 
@@ -382,21 +393,10 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
   //frame->SetMaximum(max);
   frame->Draw();
 
-  /*
-  if (res->peak.value < 0){
-    double XMin = 28.;
-    double XMax = 1500.;
-    fhisto->GetXaxis()->SetRange(XMin,XMax);
-    int binMax = fhisto->GetMaximumBin();
-    res->peak.value = fhisto->GetBinCenter(binMax);
-    res->peak.error = 0;
-  }
-  */
- 
   Result* res = propagateAndFill(counts,model,fres);
  
-  //Result* res = propagateAndFill(counts,model,fres);
   return res;
+
 } //fitModel
 
 
@@ -529,7 +529,7 @@ int main(int argc,char **argv){
     
     double hvVals[5]; double gainVals[5]; double gainValsError[5];
   
-    for (int r=0;r<5;r++){ 
+    for (int r=1;r<5;r++){ 
     
       int hv = r+1; // gain test number
     

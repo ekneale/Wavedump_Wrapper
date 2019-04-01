@@ -941,8 +941,6 @@ int ProcessBinaryFile(TString inFilePath,
       hWave->SetBinContent(iSample+1,
 			   (double)(8700 - waveform[iSample]));
 
-      
-
       waveTime = sample * GetnsPerSample(digitiser,
 					 samplingSetting);
 
@@ -966,23 +964,25 @@ int ProcessBinaryFile(TString inFilePath,
     } // end: for (short iSample = 0; iSa
     
     hMaxADC->Fill( hWave->GetMaximum() );
-
-    hWaveFFT->Reset();
     
-    hWave->FFT(hWaveFFT ,"MAG");
+    // FFT filtering
+    if(makeFilteredHisto){
+     
+      hWaveFFT->Reset();
+      
+      hWave->FFT(hWaveFFT ,"MAG");
+      
+      hWaveFFT->SetBinContent(1,0.) ;
+      
+      if(hWaveFFT->GetMaximumBin() == 2 ){
+	
+	hMaxADC_Filtered->Fill( hWave->GetMaximum());
+	
+	hQ_Filter->Fill(GetCharge(intVDCfixed,digitiser,
+				  samplingSetting,negPulsePol));
+      }
     
-    hWaveFFT->SetBinContent(1,0.) ;
-
-    
-    if(hWaveFFT->GetMaximumBin() == 2 ){
-      
-      hMaxADC_Filtered->Fill( hWave->GetMaximum());
-      
-      hQ_Filter->Fill(GetCharge(intVDCfixed,digitiser,
-				samplingSetting,negPulsePol));
-      
     }
-    
     
     // time of the signal peak    
     float nSamplesPerGate = GetGateWidth() / 1000.;
@@ -1220,7 +1220,7 @@ int ProcessBinaryFile(TString inFilePath,
   
    canvasName = "./Plots/";
    canvasName += canvas->GetName();
-   canvasName += ".png";
+   canvasName += ".pdf";
    canvas->SaveAs(canvasName);
   
   //--------------------------------
@@ -1450,7 +1450,7 @@ void ExecuteProcessing(int run = 0, int pmt = 0,
 		       TString inDir = "./", 
 		       TString outDir = "./",
 		       char digitiser = 'V',
-		       char verbosity = 0
+		       char verbosity = -1
 		       ){
 
   bool negPulsePol = GetNegPulsePol(digitiser,run);

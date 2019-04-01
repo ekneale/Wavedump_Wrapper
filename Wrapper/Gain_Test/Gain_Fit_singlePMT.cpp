@@ -103,7 +103,7 @@ InitParams initializeFit(TH1F* h){
 
   if (nfound == 1){
       double XMin = 28.;
-      double XMax = 1500.;
+      double XMax = 1200.;
       h->GetXaxis()->SetRange(XMin,XMax);
       int binMax = h->GetMaximumBin();
       sigPeak = h->GetBinCenter(binMax);
@@ -245,7 +245,7 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psva
   RooAddPdf* pedpdf = new RooAddPdf("pedpdf", "pedpdf",RooArgList(*pedgauss,*pedgauss2), *fped);
 
   //construct the exponential fit to the thermionic emission
-  RooRealVar* vm = new RooRealVar("vmin","vmin",pmval+psval*3,8,15); //TODO best nominal val so far: pmval+psval*4, vaval range 0,0.04
+  RooRealVar* vm = new RooRealVar("vmin","vmin",pmval+psval*expvar,0,12); //TODO best nominal val so far: pmval+psval*4, vaval range 0,0.04
   RooRealVar* va = new RooRealVar("valpha","valpha",vaval,0,0.04); 
   RooExpWindow* vexp = new RooExpWindow("vexp","vexp",*counts,*va,*vm);
 
@@ -284,10 +284,11 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psva
   //then get the coefficients
   RooFormulaVar*  frac_ped1 = new RooFormulaVar("frac_ped1", "frac_ped1", "TMath::Exp(-npe)", *npe); //Poisson for 0 Photo electrons Poisson(0,npe)
   RooFormulaVar* frac_pe1 = new RooFormulaVar("frac_pe1", "frac_pe1",  "TMath::Poisson(1,npe) ", *npe); // ""   for 1   ""
-  RooFormulaVar* frac_pe2 = new RooFormulaVar("frac_pe2", "frac_pe2",  "TMath::Poisson(2,npe) ", *npe); //TODO reduce the upper end of the range e.g. *npe/2.?
+  RooFormulaVar* frac_pe2 = new RooFormulaVar("frac_pe2", "frac_pe2",  "TMath::Poisson(2,npe) ", *npe); //TODO look at calculation in PMT book for prob of getting multiples
+  RooFormulaVar* frac_pe3 = new RooFormulaVar("frac_pe3", "frac_pe3",  "TMath::Poisson(3,npe) ", *npe); //TODO look at calculation in PMT book for prob of getting multiples
   RooRealVar* frac_v = new RooRealVar("frac_v","frac_v",fvval, 0,1); //fraction of events in the valley region
 
-  RooAddPdf* smodel = new RooAddPdf("smodel","smodel",RooArgList(*pedpdf,*gauss), RooArgList(*frac_ped1,*frac_pe1));
+  RooAddPdf* smodel = new RooAddPdf("smodel","smodel",RooArgList(*pedpdf,*gauss,*gauss2), RooArgList(*frac_ped1,*frac_pe1,*frac_pe2));
   RooAddPdf* model = new RooAddPdf("model","model",RooArgList(*smodel,*vexp),*frac_v);
   
   return model;
@@ -336,8 +337,8 @@ Result* propagateAndFill(RooRealVar* counts,RooAddPdf* model ,RooFitResult* fres
  //now the complicated ones that require sampling the fitted pdf/covariance
  TH1D* histo = new TH1D("valley", "valley", 200, res->ped.value,  res->pemean.value ); histo->Sumw2();
  TH1D* histo2 = new TH1D("peak", "peak", 200,  res->pemean.value - res->pewidth.value ,  res->pemean.value +5* res->pewidth.value ); histo2->Sumw2();
- TH1D* histo3 = new TH1D("peakToValley", "peakToValley", 100,  0,10 ); histo3->Sumw2();
- TH1D* histo4 = new TH1D("f", "f", 100,  0.,1 ); histo4->Sumw2();
+// TH1D* histo3 = new TH1D("peakToValley", "peakToValley", 100,  0,10 ); histo3->Sumw2();
+// TH1D* histo4 = new TH1D("f", "f", 100,  0.,1 ); histo4->Sumw2();
 
  RooArgSet nset(*counts) ;
 
@@ -350,19 +351,19 @@ Result* propagateAndFill(RooRealVar* counts,RooAddPdf* model ,RooFitResult* fres
    double ppos = fmodel->GetMaximumX(res->pemean.value - res->pewidth.value/2, res->pemean.value + 5*res->pewidth.value); //TODO increased the minimum value to better avoid the pedestal res->pemean.value - res->pewidth.value/2. 
    histo->Fill(vpos);
    histo2->Fill(ppos);
-   histo3->Fill(fmodel->Eval(ppos)/fmodel->Eval(vpos));
+//   histo3->Fill(fmodel->Eval(ppos)/fmodel->Eval(vpos));
 
    counts->setRange("signal",vpos, 1000) ;
 
-   RooAbsReal* igx_s2 =  pdf->createIntegral(*counts,NormSet(*counts),Range("signal")) ;
-   histo4->Fill(igx_s2->getVal());
+//   RooAbsReal* igx_s2 =  pdf->createIntegral(*counts,NormSet(*counts),Range("signal")) ;
+//   histo4->Fill(igx_s2->getVal());
 
  }
 
  fillValueWithError(&res->valley,histo);
  fillValueWithError(&res->peak,histo2);
- fillValueWithError(&res->peakToValley,histo3);
- fillValueWithError(&res->fvalley,histo4);
+// fillValueWithError(&res->peakToValley,histo3);
+// fillValueWithError(&res->fvalley,histo4);
 
  return res;
 }
@@ -394,7 +395,7 @@ TH1F* h2h(TH1D* hold ){
 
 Result* fitModel(TH1F* fhisto, int pmt, int hv,
             double minval = -100,
-            double maxval = 1000,
+            double maxval = 1600,
             double max = 10000){
 
 //Result* res = new Result();
@@ -409,11 +410,12 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
   InitParams params = initializeFit(fhisto);
   RooRealVar* counts = new RooRealVar("charge", "charge", 0,minval, maxval);
   RooDataHist data("data", "dataset", *counts , fhisto);
+  int expvar;
   if (hv < 4){
     expvar = 4;
   }
   else {
-    expvar = 3;
+    expvar = 2;
   }
 
   RooAddPdf* model = makePMTPDF(counts,params,expvar);
@@ -482,7 +484,7 @@ int main(int argc,char **argv){
   int loc;
   int run =1;
   int pmtHV[5];
-  char histname[200]= "";
+  char histname[300]= "";
 
   string hvfile = "../HVScan.txt";
   ifstream file(hvfile.c_str());
@@ -549,16 +551,16 @@ int main(int argc,char **argv){
     
     double hvVals[5]; double gainVals[5]; double gainValsError[5];
   
-    for (int r=3;r<5;r++){ 
+    for (int r=0;r<5;r++){ 
     
       int hv = r+1; // gain test number
    
-      sprintf(histname, "/data/kneale/Wavedump_Wrapper/RawRootDataRun_%d_PMT_%d_Loc_%d_HV_%d.root",run,pmt,loc,hv); 
+      sprintf(histname, "../../RawRootData/Run_%d_PMT_%d_Loc_%d_HV_%d.root",run,pmt,loc,hv); 
       TFile s(histname);
       s.ls();
 
-      char root_name[30];
-      sprintf(root_name, "hQ_Peak_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);//TODO try with gate-around-peak histograms 
+      char root_name[50];
+      sprintf(root_name, "hQ_Fixed_Run_%d_PMT_%d_Loc_%d_HV_%d",run,pmt,loc,hv);//TODO try with gate-around-peak histograms 
       TH1D *speData = (TH1D*)s.Get(root_name);
 
       TH1F* fhisto = h2h(speData);
@@ -568,7 +570,7 @@ int main(int argc,char **argv){
 	  
   	  /***Find the value at the maximum***/
       Result * res = fitModel(fhisto,pmt,hv);
-      float signal = res->peak.value;
+      float signal = res->pemean.value - res->ped.value;
       float signalError = res->peak.error;
         
       cout << endl;
@@ -662,6 +664,7 @@ int main(int argc,char **argv){
 
   return 0;
 }
+
 
 
 
