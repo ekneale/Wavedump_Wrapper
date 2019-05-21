@@ -303,7 +303,8 @@ RooAddPdf* makePMTPDF(RooRealVar* counts,double pmval, double psval, double psva
 
 /*** construct the pdf with parameters extracted from the fit ***/
 RooAddPdf* makePMTPDF(RooRealVar* counts,const RooArgList& fitpars){
-
+ 
+ gErrorIgnoreLevel = kWarning;
  RooRealVar* fpedmean = (RooRealVar*)fitpars.find("pedmean");
  RooRealVar* pedsigma = (RooRealVar*)fitpars.find("pedsigma");
  RooRealVar* pedsigma2 = (RooRealVar*)fitpars.find("pedsigma2");
@@ -394,9 +395,7 @@ Result* fitModel(TH1F* fhisto, int pmt, int hv,
             double minval = -100,
             double maxval = 1800,
             double max = 10000){
-
 //Result* res = new Result();
-
   TCanvas * canvas = new TCanvas("Canvas","Canvas");
   fhisto->GetXaxis()->SetTitle("charge [mV ns]");
   fhisto->GetYaxis()->SetTitle("Counts");
@@ -575,7 +574,6 @@ int main(int argc,char **argv){
     TH1F* fhisto = h2h(speData);
     printf("Getting data from SPE spectrum...\n");
 
-	  
   	/*** Find the SPE charge output ***/
     Result * res = fitModel(fhisto,pmt,hv);
 
@@ -650,15 +648,15 @@ int main(int argc,char **argv){
 
 
   /*** Write fit results to root file ***/
-  // check if voltages.root exists
+  // check if voltages_test.root exists
   // if not, create it and set up tree and branches
   // if it exists, add to the branches
  
   /*** Writ ntuples to file ***/ 
-  ifstream fileStream("voltages.root");
+  ifstream fileStream("voltages_test.root");
   if(!fileStream.good()){
 
-    TFile *outfile = new TFile("voltages.root","RECREATE");
+    TFile *outfile = new TFile("voltages_test.root","RECREATE");
 
     TNtuple *voltages = new TNtuple("voltages","voltages","pmt:operatingHV:operatingHVError:power:nominalHV:chi2:NDf:prob");
     voltages->Fill(pmt,operatingHV,operatingHVError,power,nominalHV,chi2,NDf,prob);
@@ -668,7 +666,7 @@ int main(int argc,char **argv){
   }  
 
   else {
-    TFile *outfile = new TFile("voltages.root","UPDATE");
+    TFile *outfile = new TFile("voltages_test.root","UPDATE");
     TNtuple *voltages = (TNtuple*)outfile->Get("voltages");
     voltages->Fill(pmt,operatingHV,operatingHVError,power,nominalHV,chi2,NDf,prob);
     voltages->Write("",TObject::kOverwrite);
