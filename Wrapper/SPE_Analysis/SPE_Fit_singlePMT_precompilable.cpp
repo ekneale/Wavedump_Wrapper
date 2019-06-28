@@ -386,7 +386,7 @@ Result* propagateAndFill(RooRealVar* counts,RooAddPdf* model ,RooFitResult* fres
  /*** now get the complicated ones that require sampling the fitted pdf/covariance ***/
  TH1D* histo = new TH1D("valley", "valley", 200, res->ped.value,  res->pemean.value ); histo->Sumw2();
  TH1D* histo2 = new TH1D("peak", "peak", 200,  res->pemean.value - res->pewidth.value ,  res->pemean.value +5* res->pewidth.value ); histo2->Sumw2();
- TH1D* histo3 = new TH1D("peakToValley","peakToValley",00,0,10); histo->Sumw2();
+ TH1D* histo3 = new TH1D("peakToValley","peakToValley",100,0,10); histo->Sumw2();
 
  RooArgSet nset(*counts) ;
 
